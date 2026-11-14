@@ -276,40 +276,74 @@ if (mode == "shadercodes")
 
 if (mode == "manifestpack")
 {
-    // FEAT-GTS-284: manifestpack <manifest dir> <index.tsv or .br> <out shader-manifest.bin>: what
-    // RyGTS ships for the shader pre-build: the manifest's records and pipeline recipes (no code:
-    // a record holds a translation's inputs and reads, a recipe a pipeline's state) and the index
-    // of where each program is in the game's files. The manifest folder's own files only (not the
-    // older per-GPU folders, nor the capture). A recipe file is renamed pipelines-shared-..., so a
-    // player with the same GPU imports it too (the renderer skips its own GPU's file).
+    // FEAT-GTS-284: manifestpack <out shader-manifest.bin> <source>...: what RyGTS ships for the
+    // shader pre-build: manifest records and pipeline recipes (no code: a record holds a
+    // translation's inputs and reads, a recipe a pipeline's state) and the index of where each
+    // program is in the game's files. Sources, in order: a shader-manifest.bin (its records,
+    // recipes and index), a manifest folder (its own .rec and .rcp files: not the older per-GPU
+    // folders, nor the capture) or an index (.tsv or .tsv.br). Records add up (a record is named by
+    // its program and SPIR-V hash, so one already there is the same); a later recipe file of the
+    // same GPU replaces an earlier one; a later index replaces an earlier one. So the shipped file
+    // grows with: manifestpack shader-manifest.bin shader-manifest.bin <newer manifest folder>.
+    // A recipe file is renamed pipelines-shared-..., so a player with the recording GPU imports it
+    // too (the renderer skips its own GPU's file).
     // File: "RYGTMAN1", then Brotli: int count, (string name, int length, bytes) per entry; names
     // are "CUSA03220.manifest/<file>" and "index.tsv".
-    var entries = new List<(string name, byte[] bytes)>();
-    foreach (var file in Directory.EnumerateFiles(args[1]).OrderBy(f => f, StringComparer.Ordinal))
+    var records = new SortedDictionary<string, byte[]>(StringComparer.Ordinal);
+    var recipes = new SortedDictionary<string, byte[]>(StringComparer.Ordinal);
+    byte[] indexBytes = null;
+    foreach (var source in args.Skip(2))
     {
-        string name = Path.GetFileName(file);
-        if (name.EndsWith(".rcp", StringComparison.OrdinalIgnoreCase) && name.StartsWith("pipelines-") &&
-            !name.StartsWith("pipelines-shared-"))
-            name = "pipelines-shared-" + name["pipelines-".Length..];
-        else if (!name.EndsWith(".rec", StringComparison.OrdinalIgnoreCase) && !name.EndsWith(".rcp", StringComparison.OrdinalIgnoreCase))
-            continue;
-        entries.Add(("CUSA03220.manifest/" + name, File.ReadAllBytes(file)));
+        int before = records.Count, recipesBefore = recipes.Count;
+        bool index = false;
+        if (Directory.Exists(source))
+        {
+            foreach (var file in Directory.EnumerateFiles(source))
+            {
+                string name = Path.GetFileName(file);
+                if (name.EndsWith(".rec", StringComparison.OrdinalIgnoreCase))
+                    records.TryAdd(name, File.ReadAllBytes(file));
+                else if (name.EndsWith(".rcp", StringComparison.OrdinalIgnoreCase) && name.StartsWith("pipelines-"))
+                    recipes[name.StartsWith("pipelines-shared-") ? name : "pipelines-shared-" + name["pipelines-".Length..]] = File.ReadAllBytes(file);
+            }
+        }
+        else if (source.EndsWith(".bin", StringComparison.OrdinalIgnoreCase))
+        {
+            foreach (var (name, bytes) in GameShaders.ReadManifestBundle(source))
+            {
+                if (name == "index.tsv") { indexBytes = bytes; index = true; continue; }
+                string file = Path.GetFileName(name);
+                if (file.EndsWith(".rec")) records.TryAdd(file, bytes);
+                else if (file.EndsWith(".rcp")) recipes[file] = bytes;
+            }
+        }
+        else
+        {
+            indexBytes = System.Text.Encoding.UTF8.GetBytes(string.Join("\n", GameShaders.ReadIndex(source)) + "\n");
+            index = true;
+        }
+        Console.WriteLine($"{source}: {records.Count - before} new records, {recipes.Count - recipesBefore} new recipe files{(index ? ", the index" : "")}");
     }
-    entries.Add(("index.tsv", System.Text.Encoding.UTF8.GetBytes(string.Join("\n", GameShaders.ReadIndex(args[2])) + "\n")));
-    using (var output = File.Create(args[3]))
+    if (indexBytes == null) throw new Exception("no index: give a shader-manifest.bin or an index.tsv(.br) as a source");
+    string temp = args[1] + ".tmp";
+    using (var output = File.Create(temp))
     {
         output.Write("RYGTMAN1"u8);
         using var brotli = new System.IO.Compression.BrotliStream(output, System.IO.Compression.CompressionLevel.SmallestSize);
         using var w = new BinaryWriter(brotli);
-        w.Write(entries.Count);
-        foreach (var (name, bytes) in entries)
+        w.Write(records.Count + recipes.Count + 1);
+        foreach (var (name, bytes) in records.Concat(recipes))
         {
-            w.Write(name);
+            w.Write("CUSA03220.manifest/" + name);
             w.Write(bytes.Length);
             w.Write(bytes);
         }
+        w.Write("index.tsv");
+        w.Write(indexBytes.Length);
+        w.Write(indexBytes);
     }
-    Console.WriteLine($"{entries.Count(e => e.name.EndsWith(".rec"))} records, {entries.Count(e => e.name.EndsWith(".rcp"))} recipe files and the index: {new FileInfo(args[3]).Length / 1024} KB");
+    File.Move(temp, args[1], true);
+    Console.WriteLine($"{records.Count} records, {recipes.Count} recipe files ({string.Join(", ", recipes.Keys)}) and the index: {new FileInfo(args[1]).Length / 1024} KB");
     return 0;
 }
 
@@ -322,22 +356,13 @@ if (mode == "manifestprep")
     // <cache dir>\CUSA03220-programs (programs already there are kept). The renderer translates
     // the records on the splash screen and imports the recipes (shadGT FEAT-GTS-470/471).
     string game = args[1], update = args[2], cache = args[4];
-    using var input = File.OpenRead(args[3]);
-    var magic = new byte[8];
-    input.ReadExactly(magic);
-    if (!magic.AsSpan().SequenceEqual("RYGTMAN1"u8)) throw new Exception("not a RyGT shader manifest");
-    using var br = new System.IO.Compression.BrotliStream(input, System.IO.Compression.CompressionMode.Decompress);
-    using var r = new BinaryReader(br);
-    int count = r.ReadInt32();
     string manifest = Path.Combine(cache, "CUSA03220.manifest");
     Directory.CreateDirectory(manifest);
     var records = new List<string>();
     string[] index = Array.Empty<string>();
     int written = 0, recipes = 0;
-    for (int i = 0; i < count; i++)
+    foreach (var (name, bytes) in GameShaders.ReadManifestBundle(args[3]))
     {
-        string name = r.ReadString();
-        var bytes = r.ReadBytes(r.ReadInt32());
         if (name == "index.tsv")
         {
             index = System.Text.Encoding.UTF8.GetString(bytes).Split('\n', StringSplitOptions.RemoveEmptyEntries);
