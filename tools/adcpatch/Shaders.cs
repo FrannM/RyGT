@@ -10,6 +10,68 @@ static class GameShaders
 {
     static readonly byte[] Signature = "OrbShdr"u8.ToArray();
 
+    /// FEAT-GTS-284: the programs of manifest records, from their file names
+    /// (<program>-<SPIR-V hash>.rec).
+    public static HashSet<ulong> RecordPrograms(IEnumerable<string> recordFiles)
+    {
+        var want = new HashSet<ulong>();
+        foreach (var rec in recordFiles)
+        {
+            string name = Path.GetFileNameWithoutExtension(rec);
+            if (name.Length > 16 && name[16] == '-' &&
+                ulong.TryParse(name[..16], System.Globalization.NumberStyles.HexNumber, null, out var h))
+                want.Add(h);
+        }
+        return want;
+    }
+
+    /// Copies each wanted program the index places (from its first instruction through its footer)
+    /// out of the game's volumes into outDir as <hash>.bin, skipping programs already there.
+    /// FIX-GTS-281: one pass over the volumes, unpacking only the files that hold wanted programs,
+    /// on ADCPATCH_THREADS threads (default 6). Each file is written whole or not at all
+    /// (FIX-GTS-282), so a kept file is complete.
+    public static (int present, int written, int files, double seconds) ExtractPrograms(
+        IEnumerable<string> indexFiles, IEnumerable<string> indexLines, HashSet<ulong> wanted, string outDir)
+    {
+        Directory.CreateDirectory(outDir);
+        var want = new HashSet<ulong>(wanted);
+        int present = want.RemoveWhere(h => File.Exists(Path.Combine(outDir, $"{h:x16}.bin")));
+        var index = new Dictionary<ulong, (string path, long footer, int length)>();
+        foreach (var line in indexLines)
+        {
+            var f = line.Split('\t');
+            if (f.Length < 4) continue;
+            ulong h = Convert.ToUInt64(f[0], 16);
+            if (want.Contains(h)) index[h] = (f[1], long.Parse(f[2]), int.Parse(f[3]));
+        }
+        var groups = index.GroupBy(kv => kv.Value.path, StringComparer.OrdinalIgnoreCase)
+                          .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+        string work = Path.Combine(Path.GetTempPath(), "rygt-programs-" + Environment.ProcessId);
+        int written = 0;
+        var started = DateTime.UtcNow;
+        try
+        {
+            int threads = int.TryParse(Environment.GetEnvironmentVariable("ADCPATCH_THREADS"), out var t) && t > 0 ? t : 6;
+            if (groups.Count > 0)
+            {
+                ForEachWantedFile(indexFiles, work, path => groups.ContainsKey(path), (path, data) =>
+                {
+                    foreach (var (hash, e) in groups[path])
+                    {
+                        int start = CodeStart(data, e.footer);
+                        if (start < 0) continue;
+                        string target = Path.Combine(outDir, $"{hash:x16}.bin");
+                        File.WriteAllBytes(target + ".tmp", data[start..(int)(e.footer + 32)]);
+                        File.Move(target + ".tmp", target, true);
+                        Interlocked.Increment(ref written);
+                    }
+                }, threads);
+            }
+        }
+        finally { try { Directory.Delete(work, true); } catch { } }
+        return (present, written, groups.Count, (DateTime.UtcNow - started).TotalSeconds);
+    }
+
     /// FIX-GTS-283: the shader index's lines; a name ending in .br is Brotli-compressed (the
     /// shipped form: 212,692 programs are 10.7 MB as text, 2.1 MB compressed, mostly their IDs).
     public static IEnumerable<string> ReadIndex(string path)

@@ -263,55 +263,112 @@ if (mode == "shadercodes")
     HashSet<ulong> want;
     if (Directory.Exists(args[4]))
     {
-        want = new HashSet<ulong>();
-        foreach (var rec in Directory.EnumerateFiles(args[4], "*.rec", SearchOption.AllDirectories))
-        {
-            string name = Path.GetFileNameWithoutExtension(rec);
-            int dash = name.IndexOf('-');
-            if (dash == 16 && ulong.TryParse(name[..16], System.Globalization.NumberStyles.HexNumber, null, out var h)) want.Add(h);
-        }
+        want = GameShaders.RecordPrograms(Directory.EnumerateFiles(args[4], "*.rec", SearchOption.AllDirectories));
     }
     else
     {
         want = File.ReadAllLines(args[4]).Where(l => l.Trim().Length > 0).Select(l => Convert.ToUInt64(l.Trim(), 16)).ToHashSet();
     }
-    Directory.CreateDirectory(args[5]);
-    int wantedCount = want.Count;
-    int present = want.RemoveWhere(h => File.Exists(Path.Combine(args[5], $"{h:x16}.bin")));
-    var index = new Dictionary<ulong, (string path, long footer, int length)>();
-    foreach (var line in GameShaders.ReadIndex(args[3]))
+    var (present, written, files, seconds) = GameShaders.ExtractPrograms(idx, GameShaders.ReadIndex(args[3]), want, args[5]);
+    Console.WriteLine($"{want.Count} programs wanted, {present} extracted already; {written} of {want.Count - present} written from {files} files in {seconds:F0} s");
+    return 0;
+}
+
+if (mode == "manifestpack")
+{
+    // FEAT-GTS-284: manifestpack <manifest dir> <index.tsv or .br> <out shader-manifest.bin>: what
+    // RyGTS ships for the shader pre-build: the manifest's records and pipeline recipes (no code:
+    // a record holds a translation's inputs and reads, a recipe a pipeline's state) and the index
+    // of where each program is in the game's files. The manifest folder's own files only (not the
+    // older per-GPU folders, nor the capture). A recipe file is renamed pipelines-shared-..., so a
+    // player with the same GPU imports it too (the renderer skips its own GPU's file).
+    // File: "RYGTMAN1", then Brotli: int count, (string name, int length, bytes) per entry; names
+    // are "CUSA03220.manifest/<file>" and "index.tsv".
+    var entries = new List<(string name, byte[] bytes)>();
+    foreach (var file in Directory.EnumerateFiles(args[1]).OrderBy(f => f, StringComparer.Ordinal))
     {
-        var f = line.Split('\t');
-        ulong h = Convert.ToUInt64(f[0], 16);
-        if (want.Contains(h)) index[h] = (f[1], long.Parse(f[2]), int.Parse(f[3]));
+        string name = Path.GetFileName(file);
+        if (name.EndsWith(".rcp", StringComparison.OrdinalIgnoreCase) && name.StartsWith("pipelines-") &&
+            !name.StartsWith("pipelines-shared-"))
+            name = "pipelines-shared-" + name["pipelines-".Length..];
+        else if (!name.EndsWith(".rec", StringComparison.OrdinalIgnoreCase) && !name.EndsWith(".rcp", StringComparison.OrdinalIgnoreCase))
+            continue;
+        entries.Add(("CUSA03220.manifest/" + name, File.ReadAllBytes(file)));
     }
-    string work = Path.Combine(Path.GetTempPath(), "rygt-shadercodes-" + Environment.ProcessId);
-    int written = 0;
-    // FIX-GTS-281: one pass over the volumes, unpacking only the files that hold wanted programs
-    // (it loaded and walked the whole volume index once per file: 527 files took 8 minutes).
-    var groups = index.GroupBy(kv => kv.Value.path, StringComparer.OrdinalIgnoreCase)
-                      .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
-    var started = DateTime.UtcNow;
-    try
+    entries.Add(("index.tsv", System.Text.Encoding.UTF8.GetBytes(string.Join("\n", GameShaders.ReadIndex(args[2])) + "\n")));
+    using (var output = File.Create(args[3]))
     {
-        // ADCPATCH_THREADS: how many files are unpacked at once (default 6).
-        int threads = int.TryParse(Environment.GetEnvironmentVariable("ADCPATCH_THREADS"), out var t) && t > 0 ? t : 6;
-        GameShaders.ForEachWantedFile(idx, work, path => groups.ContainsKey(path), (path, data) =>
+        output.Write("RYGTMAN1"u8);
+        using var brotli = new System.IO.Compression.BrotliStream(output, System.IO.Compression.CompressionLevel.SmallestSize);
+        using var w = new BinaryWriter(brotli);
+        w.Write(entries.Count);
+        foreach (var (name, bytes) in entries)
         {
-            foreach (var (hash, e) in groups[path])
-            {
-                int start = GameShaders.CodeStart(data, e.footer);
-                if (start < 0) continue;
-                // Written whole or not at all: a kept file is taken as complete (FIX-GTS-282).
-                string target = Path.Combine(args[5], $"{hash:x16}.bin");
-                File.WriteAllBytes(target + ".tmp", data[start..(int)(e.footer + 32)]);
-                File.Move(target + ".tmp", target, true);
-                Interlocked.Increment(ref written);
-            }
-        }, threads);
+            w.Write(name);
+            w.Write(bytes.Length);
+            w.Write(bytes);
+        }
     }
-    finally { try { Directory.Delete(work, true); } catch { } }
-    Console.WriteLine($"{wantedCount} programs wanted, {present} extracted already; {written} of {want.Count} written from {groups.Count} files in {(DateTime.UtcNow - started).TotalSeconds:F0} s");
+    Console.WriteLine($"{entries.Count(e => e.name.EndsWith(".rec"))} records, {entries.Count(e => e.name.EndsWith(".rcp"))} recipe files and the index: {new FileInfo(args[3]).Length / 1024} KB");
+    return 0;
+}
+
+if (mode == "manifestprep")
+{
+    // FEAT-GTS-284: manifestprep <game> <update or ""> <shader-manifest.bin> <cache dir>: what Set up
+    // does with the shipped manifest (manifestpack). Writes its records and recipes into
+    // <cache dir>\CUSA03220.manifest (records already there are kept; the shipped recipe files are
+    // replaced) and copies each recorded program out of the player's own game files into
+    // <cache dir>\CUSA03220-programs (programs already there are kept). The renderer translates
+    // the records on the splash screen and imports the recipes (shadGT FEAT-GTS-470/471).
+    string game = args[1], update = args[2], cache = args[4];
+    using var input = File.OpenRead(args[3]);
+    var magic = new byte[8];
+    input.ReadExactly(magic);
+    if (!magic.AsSpan().SequenceEqual("RYGTMAN1"u8)) throw new Exception("not a RyGT shader manifest");
+    using var br = new System.IO.Compression.BrotliStream(input, System.IO.Compression.CompressionMode.Decompress);
+    using var r = new BinaryReader(br);
+    int count = r.ReadInt32();
+    string manifest = Path.Combine(cache, "CUSA03220.manifest");
+    Directory.CreateDirectory(manifest);
+    var records = new List<string>();
+    string[] index = Array.Empty<string>();
+    int written = 0, recipes = 0;
+    for (int i = 0; i < count; i++)
+    {
+        string name = r.ReadString();
+        var bytes = r.ReadBytes(r.ReadInt32());
+        if (name == "index.tsv")
+        {
+            index = System.Text.Encoding.UTF8.GetString(bytes).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            continue;
+        }
+        if (!name.StartsWith("CUSA03220.manifest/")) continue;
+        string file = Path.GetFileName(name);
+        string target = Path.Combine(manifest, file);
+        if (file.EndsWith(".rec"))
+        {
+            records.Add(file);
+            if (File.Exists(target)) continue;
+            File.WriteAllBytes(target + ".tmp", bytes);
+            File.Move(target + ".tmp", target, true);
+            written++;
+        }
+        else if (file.EndsWith(".rcp"))
+        {
+            File.WriteAllBytes(target + ".tmp", bytes);
+            File.Move(target + ".tmp", target, true);
+            recipes++;
+        }
+    }
+    var idx = new List<string>();
+    if (!string.IsNullOrEmpty(update)) idx.Add(Path.Combine(update, "gt.idx"));
+    idx.Add(Path.Combine(game, "gt.idx"));
+    var want = GameShaders.RecordPrograms(records);
+    var (present, copied, files, seconds) = GameShaders.ExtractPrograms(idx, index, want, Path.Combine(cache, "CUSA03220-programs"));
+    Console.WriteLine($"{written} of {records.Count} records and {recipes} recipe files written; " +
+                      $"{copied} programs copied from the game files ({present} of {want.Count} there already, " +
+                      $"{want.Count - present - copied} not found) in {seconds:F0} s");
     return 0;
 }
 

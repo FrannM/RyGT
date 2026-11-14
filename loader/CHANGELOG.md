@@ -6,6 +6,16 @@ The version lives in `loader/Version.cs`. To release a change, bump
 `LauncherVersion.Value` there and add a section here with the same number;
 CI fails when the two disagree.
 
+## 0.2.0 - 2026-11-14
+
+* FEAT-GTS-284: Shaders from the shared shader manifest. When tools\adcpatch\shader-manifest.bin is
+  there (adcpatch manifestpack: the records of shader translations and the pipeline recipes RyGT's
+  players have built, no shader code, and the index of where each program is in the game's files), Set
+  up, and a start after a newer one is shipped, writes it into the shaders folder and copies each
+  recorded program out of this PC's game files (adcpatch manifestprep; about a minute the first time,
+  seconds after). The game is then started with shader pre-translation on, so the shaders are translated
+  and their pipelines built on the splash screen (shadGT FEAT-GTS-470/471).
+
 ## 0.1.8 - 2026-11-13
 
 * FEAT-GTS-280: Controls has a new HD rumble & adaptive triggers window (it replaces the Trigger strength
