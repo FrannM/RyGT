@@ -200,16 +200,42 @@ if (mode == "shaderindex")
     var idx = new List<string>();
     if (!string.IsNullOrEmpty(args[2])) idx.Add(Path.Combine(args[2], "gt.idx"));
     idx.Add(Path.Combine(args[1], "gt.idx"));
+    // FIX-GTS-281: each program is written as it is found (args[3] + ".partial", renamed at the
+    // end), so a stop or a crash keeps what was found; and which file types hold programs.
     var found = new Dictionary<ulong, string>();
+    var byExtension = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
     int files = 0;
-    GameShaders.ForEachFile(idx, Path.Combine(Path.GetTempPath(), "rygt-shaderscan-" + Environment.ProcessId), (path, data) =>
+    var started = DateTime.UtcNow;
+    string partial = args[3] + ".partial";
+    int failed;
+    using (var writer = new StreamWriter(partial, false))
     {
-        if (++files % 2000 == 0) Console.WriteLine($"{files} files, {found.Count} programs");
-        foreach (var (hash, footer, length) in GameShaders.Find(data))
-            found.TryAdd(hash, $"{hash:x16}\t{path}\t{footer}\t{length}");
-    });
+        failed = GameShaders.ForEachFile(idx, Path.Combine(Path.GetTempPath(), "rygt-shaderscan-" + Environment.ProcessId), (path, data) =>
+        {
+            if (++files % 2000 == 0)
+            {
+                writer.Flush();
+                Console.WriteLine($"{files} files, {found.Count} programs, {(DateTime.UtcNow - started).TotalMinutes:F1} min");
+            }
+            bool any = false;
+            foreach (var (hash, footer, length) in GameShaders.Find(data))
+            {
+                if (!found.TryAdd(hash, $"{hash:x16}\t{path}\t{footer}\t{length}")) continue;
+                writer.WriteLine(found[hash]);
+                any = true;
+            }
+            if (any)
+            {
+                string ext = Path.GetExtension(path);
+                byExtension[ext] = byExtension.GetValueOrDefault(ext) + 1;
+            }
+        });
+    }
     File.WriteAllLines(args[3], found.Values.OrderBy(x => x));
-    Console.WriteLine($"{found.Count} programs in {files} files");
+    File.Delete(partial);
+    Console.WriteLine($"{found.Count} programs in {files} files ({failed} skipped) in {(DateTime.UtcNow - started).TotalMinutes:F1} min");
+    Console.WriteLine("files with new programs by type: " +
+        string.Join(", ", byExtension.OrderByDescending(e => e.Value).Select(e => $"{(e.Key.Length > 0 ? e.Key : "(none)")} {e.Value}")));
     return 0;
 }
 

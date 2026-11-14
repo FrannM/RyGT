@@ -61,10 +61,13 @@ static class GameShaders
     };
 
     /// Walks every file of the volumes (the update's first; a path is read once) and calls
-    /// visit(path, bytes) for each file that may hold shaders.
-    public static void ForEachFile(IEnumerable<string> indexFiles, string tempDir,
-                                   Action<string, byte[]> visit)
+    /// visit(path, bytes) for each file that may hold shaders. FIX-GTS-281: a file that fails to
+    /// unpack or to scan is reported and skipped (one bad file ended a 95 GB scan with nothing
+    /// written); returns how many failed.
+    public static int ForEachFile(IEnumerable<string> indexFiles, string tempDir,
+                                  Action<string, byte[]> visit)
     {
+        int failed = 0;
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         Directory.CreateDirectory(tempDir);
         string temp = Path.Combine(tempDir, "scan.bin");
@@ -87,18 +90,27 @@ static class GameShaders
                 {
                     string path = file.Key.Replace('\\', '/');
                     if (!seen.Add(path) || SkipExtensions.Contains(Path.GetExtension(path))) continue;
-                    if (File.Exists(temp)) File.Delete(temp);
-                    var quiet = Console.Out;
-                    Console.SetOut(TextWriter.Null);
-                    bool ok;
-                    try { ok = unpacker.UnpackFile(infos[file.Value.EntryIndex], path, temp); }
-                    finally { Console.SetOut(quiet); }
-                    if (!ok || !File.Exists(temp)) continue;
-                    visit(path, File.ReadAllBytes(temp));
+                    try
+                    {
+                        if (File.Exists(temp)) File.Delete(temp);
+                        var quiet = Console.Out;
+                        Console.SetOut(TextWriter.Null);
+                        bool ok;
+                        try { ok = unpacker.UnpackFile(infos[file.Value.EntryIndex], path, temp); }
+                        finally { Console.SetOut(quiet); }
+                        if (!ok || !File.Exists(temp)) continue;
+                        visit(path, File.ReadAllBytes(temp));
+                    }
+                    catch (Exception e)
+                    {
+                        failed++;
+                        Console.Error.WriteLine($"skipped {path}: {e.GetType().Name}: {e.Message}");
+                    }
                 }
             }
         }
         if (File.Exists(temp)) File.Delete(temp);
+        return failed;
     }
 
 }
