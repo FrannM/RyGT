@@ -251,13 +251,33 @@ if (mode == "shaderindex")
 
 if (mode == "shadercodes")
 {
-    // shadercodes <game> <update or ""> <index.tsv> <hashes.txt> <out dir>: writes <hash>.bin for
-    // each listed program, from its first instruction through its footer, from the player's own
-    // game files (nothing leaves the PC).
+    // shadercodes <game> <update or ""> <index.tsv> <manifest dir or hashes.txt> <out dir>: writes
+    // <hash>.bin for each wanted program, from its first instruction through its footer, from the
+    // player's own game files (nothing leaves the PC). FIX-GTS-282: the wanted programs are the
+    // manifest's (a record file is <program>-<SPIR-V hash>.rec), so the full index ships once with
+    // the game version and a grown manifest needs no new list; programs already in <out dir> are
+    // kept, so after a manifest update only the new ones are unpacked.
     var idx = new List<string>();
     if (!string.IsNullOrEmpty(args[2])) idx.Add(Path.Combine(args[2], "gt.idx"));
     idx.Add(Path.Combine(args[1], "gt.idx"));
-    var want = File.ReadAllLines(args[4]).Where(l => l.Trim().Length > 0).Select(l => Convert.ToUInt64(l.Trim(), 16)).ToHashSet();
+    HashSet<ulong> want;
+    if (Directory.Exists(args[4]))
+    {
+        want = new HashSet<ulong>();
+        foreach (var rec in Directory.EnumerateFiles(args[4], "*.rec", SearchOption.AllDirectories))
+        {
+            string name = Path.GetFileNameWithoutExtension(rec);
+            int dash = name.IndexOf('-');
+            if (dash == 16 && ulong.TryParse(name[..16], System.Globalization.NumberStyles.HexNumber, null, out var h)) want.Add(h);
+        }
+    }
+    else
+    {
+        want = File.ReadAllLines(args[4]).Where(l => l.Trim().Length > 0).Select(l => Convert.ToUInt64(l.Trim(), 16)).ToHashSet();
+    }
+    Directory.CreateDirectory(args[5]);
+    int wantedCount = want.Count;
+    int present = want.RemoveWhere(h => File.Exists(Path.Combine(args[5], $"{h:x16}.bin")));
     var index = new Dictionary<ulong, (string path, long footer, int length)>();
     foreach (var line in File.ReadLines(args[3]))
     {
@@ -265,7 +285,6 @@ if (mode == "shadercodes")
         ulong h = Convert.ToUInt64(f[0], 16);
         if (want.Contains(h)) index[h] = (f[1], long.Parse(f[2]), int.Parse(f[3]));
     }
-    Directory.CreateDirectory(args[5]);
     string work = Path.Combine(Path.GetTempPath(), "rygt-shadercodes-" + Environment.ProcessId);
     int written = 0;
     // FIX-GTS-281: one pass over the volumes, unpacking only the files that hold wanted programs
@@ -283,13 +302,16 @@ if (mode == "shadercodes")
             {
                 int start = GameShaders.CodeStart(data, e.footer);
                 if (start < 0) continue;
-                File.WriteAllBytes(Path.Combine(args[5], $"{hash:x16}.bin"), data[start..(int)(e.footer + 32)]);
+                // Written whole or not at all: a kept file is taken as complete (FIX-GTS-282).
+                string target = Path.Combine(args[5], $"{hash:x16}.bin");
+                File.WriteAllBytes(target + ".tmp", data[start..(int)(e.footer + 32)]);
+                File.Move(target + ".tmp", target, true);
                 Interlocked.Increment(ref written);
             }
         }, threads);
     }
     finally { try { Directory.Delete(work, true); } catch { } }
-    Console.WriteLine($"{written} of {want.Count} programs written from {groups.Count} files in {(DateTime.UtcNow - started).TotalSeconds:F0} s");
+    Console.WriteLine($"{wantedCount} programs wanted, {present} extracted already; {written} of {want.Count} written from {groups.Count} files in {(DateTime.UtcNow - started).TotalSeconds:F0} s");
     return 0;
 }
 
