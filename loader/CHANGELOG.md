@@ -15,6 +15,8 @@ CI fails when the two disagree.
   recorded program out of this PC's game files (adcpatch manifestprep; about a minute the first time,
   seconds after). The game is then started with shader pre-translation on, so the shaders are translated
   and their pipelines built on the splash screen (shadGT FEAT-GTS-470/471).
+* FEAT-GTS-285: "Rebuild translated shaders in the background after a renderer update" is on by default,
+  as shader pre-translation is in the renderer now (shadGT FEAT-GTS-478); unchecking it turns it off.
 
 ## 0.1.8 - 2026-11-13
 

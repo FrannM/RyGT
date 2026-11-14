@@ -2349,9 +2349,10 @@ namespace RyGT
             shaderObjectTip.SetToolTip(shaderObjects, "Experimental: may cause rendering issues. Unavailable on AMD GPUs.");
             // FEAT-GTS-445 (from RyGT7's PERF-GT7-111/117 and PERF-GT7-108; RyGT-Team/rygt7#3): shader
             // pre-translation (SHADGT_MANIFEST_RECORD / SHADGT_MANIFEST_PRETRANSLATE) and the compile pack
-            // (SHADGT_COMPILE_PACK), both off unless checked.
+            // (SHADGT_COMPILE_PACK). FEAT-GTS-285: pre-translation is on unless unchecked (the
+            // renderer's default since shadGT FEAT-GTS-478); the compile pack is off unless checked.
             AddOption(shaders, "Rebuild translated shaders in the background after a renderer update",
-                      "GPU", "shader_pretranslate", false);
+                      "GPU", "shader_pretranslate", true);
             AddOption(shaders, "Compile the shaders already seen on this PC at start, after a driver update (needs shader objects; may pause races)",
                       "GPU", "compile_pack", false);
             // What the game does while a new shader compiles during play (GPU.compile_mode).
@@ -4360,7 +4361,7 @@ namespace RyGT
                                    !ReadSetting("GPU", "dlssg_enabled", false);
                     bool shaderObjects = ReadSetting("GPU", "shader_objects", false);
                     StartGame(root, settings.HddStreaming, experimentalSceneSize, antiLag, shaderObjects,
-                              ReadSetting("GPU", "shader_pretranslate", false), ReadSetting("GPU", "compile_pack", false),
+                              ReadSetting("GPU", "shader_pretranslate", true), ReadSetting("GPU", "compile_pack", false),
                               CustomEnvironment.Copy(settings.Env));
                     status.Text = "GT Sport is starting. Logs: logs\\stdout.log and logs\\stderr.log.";
                 }));
@@ -4414,11 +4415,16 @@ namespace RyGT
                         // the Advanced page, applied below, still wins).
                         // FEAT-GTS-284: and always once the shipped shader manifest is prepared: its
                         // records are translated on the splash screen (the ones the store has are
-                        // skipped in a moment).
+                        // skipped in a moment). FEAT-GTS-285: on by default (the renderer's default
+                        // too), so unchecked turns it off.
                         if (shaderPretranslate || File.Exists(Path.Combine(root, "shaders", "shader-manifest.txt")))
                         {
                             start.EnvironmentVariables["SHADGT_MANIFEST_RECORD"] = "1";
                             start.EnvironmentVariables["SHADGT_MANIFEST_PRETRANSLATE"] = "1";
+                        }
+                        else
+                        {
+                            start.EnvironmentVariables["SHADGT_MANIFEST_PRETRANSLATE"] = "0";
                         }
                         if (compilePack) start.EnvironmentVariables["SHADGT_COMPILE_PACK"] = "1";
                         // FEAT-GTS-433: the user's list last, so it wins; only the count is logged.
