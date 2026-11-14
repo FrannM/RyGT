@@ -200,58 +200,200 @@ if (mode == "shaderindex")
     var idx = new List<string>();
     if (!string.IsNullOrEmpty(args[2])) idx.Add(Path.Combine(args[2], "gt.idx"));
     idx.Add(Path.Combine(args[1], "gt.idx"));
+    // FIX-GTS-281: each program is written as it is found (args[3] + ".partial", renamed at the
+    // end), so a stop or a crash keeps what was found; and which file types hold programs.
+    // The smallest file holding each program, so extraction (shadercodes) unpacks small files
+    // rather than a track's pack where the same program is in a car's file too.
     var found = new Dictionary<ulong, string>();
+    var foundSize = new Dictionary<ulong, long>();
+    var byExtension = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
     int files = 0;
-    GameShaders.ForEachFile(idx, Path.Combine(Path.GetTempPath(), "rygt-shaderscan-" + Environment.ProcessId), (path, data) =>
+    var started = DateTime.UtcNow;
+    string partial = args[3] + ".partial";
+    int failed;
+    using (var writer = new StreamWriter(partial, false))
     {
-        if (++files % 2000 == 0) Console.WriteLine($"{files} files, {found.Count} programs");
-        foreach (var (hash, footer, length) in GameShaders.Find(data))
-            found.TryAdd(hash, $"{hash:x16}\t{path}\t{footer}\t{length}");
-    });
-    File.WriteAllLines(args[3], found.Values.OrderBy(x => x));
-    Console.WriteLine($"{found.Count} programs in {files} files");
+        failed = GameShaders.ForEachFile(idx, Path.Combine(Path.GetTempPath(), "rygt-shaderscan-" + Environment.ProcessId), (path, data) =>
+        {
+            if (++files % 2000 == 0)
+            {
+                writer.Flush();
+                Console.WriteLine($"{files} files, {found.Count} programs, {(DateTime.UtcNow - started).TotalMinutes:F1} min");
+            }
+            bool any = false;
+            foreach (var (hash, footer, length) in GameShaders.Find(data))
+            {
+                string line = $"{hash:x16}\t{path}\t{footer}\t{length}";
+                if (found.TryGetValue(hash, out _))
+                {
+                    if (data.Length < foundSize[hash]) { found[hash] = line; foundSize[hash] = data.Length; }
+                    continue;
+                }
+                found[hash] = line;
+                foundSize[hash] = data.Length;
+                writer.WriteLine(line);
+                any = true;
+            }
+            if (any)
+            {
+                string ext = Path.GetExtension(path);
+                byExtension[ext] = byExtension.GetValueOrDefault(ext) + 1;
+            }
+        });
+    }
+    GameShaders.WriteIndex(args[3], found.Values); // FIX-GTS-283: .br for the shipped form
+    File.Delete(partial);
+    Console.WriteLine($"{found.Count} programs in {files} files ({failed} skipped) in {(DateTime.UtcNow - started).TotalMinutes:F1} min");
+    Console.WriteLine("files with new programs by type: " +
+        string.Join(", ", byExtension.OrderByDescending(e => e.Value).Select(e => $"{(e.Key.Length > 0 ? e.Key : "(none)")} {e.Value}")));
     return 0;
 }
 
 if (mode == "shadercodes")
 {
-    // shadercodes <game> <update or ""> <index.tsv> <hashes.txt> <out dir>: writes <hash>.bin for
-    // each listed program, from its first instruction through its footer, from the player's own
-    // game files (nothing leaves the PC).
+    // shadercodes <game> <update or ""> <index.tsv> <manifest dir or hashes.txt> <out dir>: writes
+    // <hash>.bin for each wanted program, from its first instruction through its footer, from the
+    // player's own game files (nothing leaves the PC). FIX-GTS-282: the wanted programs are the
+    // manifest's (a record file is <program>-<SPIR-V hash>.rec), so the full index ships once with
+    // the game version and a grown manifest needs no new list; programs already in <out dir> are
+    // kept, so after a manifest update only the new ones are unpacked.
     var idx = new List<string>();
     if (!string.IsNullOrEmpty(args[2])) idx.Add(Path.Combine(args[2], "gt.idx"));
     idx.Add(Path.Combine(args[1], "gt.idx"));
-    var want = File.ReadAllLines(args[4]).Where(l => l.Trim().Length > 0).Select(l => Convert.ToUInt64(l.Trim(), 16)).ToHashSet();
-    var index = new Dictionary<ulong, (string path, long footer, int length)>();
-    foreach (var line in File.ReadLines(args[3]))
+    HashSet<ulong> want;
+    if (Directory.Exists(args[4]))
     {
-        var f = line.Split('\t');
-        ulong h = Convert.ToUInt64(f[0], 16);
-        if (want.Contains(h)) index[h] = (f[1], long.Parse(f[2]), int.Parse(f[3]));
+        want = GameShaders.RecordPrograms(Directory.EnumerateFiles(args[4], "*.rec", SearchOption.AllDirectories));
     }
-    Directory.CreateDirectory(args[5]);
-    string work = Path.Combine(Path.GetTempPath(), "rygt-shadercodes-" + Environment.ProcessId);
-    int written = 0;
-    try
+    else
     {
-        foreach (var group in index.GroupBy(kv => kv.Value.path))
+        want = File.ReadAllLines(args[4]).Where(l => l.Trim().Length > 0).Select(l => Convert.ToUInt64(l.Trim(), 16)).ToHashSet();
+    }
+    var (present, written, files, seconds) = GameShaders.ExtractPrograms(idx, GameShaders.ReadIndex(args[3]), want, args[5]);
+    Console.WriteLine($"{want.Count} programs wanted, {present} extracted already; {written} of {want.Count - present} written from {files} files in {seconds:F0} s");
+    return 0;
+}
+
+if (mode == "manifestpack")
+{
+    // FEAT-GTS-284: manifestpack <out shader-manifest.bin> <source>...: what RyGTS ships for the
+    // shader pre-build: manifest records and pipeline recipes (no code: a record holds a
+    // translation's inputs and reads, a recipe a pipeline's state) and the index of where each
+    // program is in the game's files. Sources, in order: a shader-manifest.bin (its records,
+    // recipes and index), a manifest folder (its own .rec and .rcp files: not the older per-GPU
+    // folders, nor the capture) or an index (.tsv or .tsv.br). Records add up (a record is named by
+    // its program and SPIR-V hash, so one already there is the same); a later recipe file of the
+    // same GPU replaces an earlier one; a later index replaces an earlier one. So the shipped file
+    // grows with: manifestpack shader-manifest.bin shader-manifest.bin <newer manifest folder>.
+    // A recipe file is renamed pipelines-shared-..., so a player with the recording GPU imports it
+    // too (the renderer skips its own GPU's file).
+    // File: "RYGTMAN1", then Brotli: int count, (string name, int length, bytes) per entry; names
+    // are "CUSA03220.manifest/<file>" and "index.tsv".
+    var records = new SortedDictionary<string, byte[]>(StringComparer.Ordinal);
+    var recipes = new SortedDictionary<string, byte[]>(StringComparer.Ordinal);
+    byte[] indexBytes = null;
+    foreach (var source in args.Skip(2))
+    {
+        int before = records.Count, recipesBefore = recipes.Count;
+        bool index = false;
+        if (Directory.Exists(source))
         {
-            GameFiles.Extract(idx, new[] { group.Key }, work);
-            string file = Path.Combine(work, group.Key.ToUpperInvariant().Replace('/', Path.DirectorySeparatorChar));
-            if (!File.Exists(file)) continue;
-            var data = File.ReadAllBytes(file);
-            File.Delete(file);
-            foreach (var (hash, e) in group)
+            foreach (var file in Directory.EnumerateFiles(source))
             {
-                int start = GameShaders.CodeStart(data, e.footer);
-                if (start < 0) continue;
-                File.WriteAllBytes(Path.Combine(args[5], $"{hash:x16}.bin"), data[start..(int)(e.footer + 32)]);
-                written++;
+                string name = Path.GetFileName(file);
+                if (name.EndsWith(".rec", StringComparison.OrdinalIgnoreCase))
+                    records.TryAdd(name, File.ReadAllBytes(file));
+                else if (name.EndsWith(".rcp", StringComparison.OrdinalIgnoreCase) && name.StartsWith("pipelines-"))
+                    recipes[name.StartsWith("pipelines-shared-") ? name : "pipelines-shared-" + name["pipelines-".Length..]] = File.ReadAllBytes(file);
             }
         }
+        else if (source.EndsWith(".bin", StringComparison.OrdinalIgnoreCase))
+        {
+            foreach (var (name, bytes) in GameShaders.ReadManifestBundle(source))
+            {
+                if (name == "index.tsv") { indexBytes = bytes; index = true; continue; }
+                string file = Path.GetFileName(name);
+                if (file.EndsWith(".rec")) records.TryAdd(file, bytes);
+                else if (file.EndsWith(".rcp")) recipes[file] = bytes;
+            }
+        }
+        else
+        {
+            indexBytes = System.Text.Encoding.UTF8.GetBytes(string.Join("\n", GameShaders.ReadIndex(source)) + "\n");
+            index = true;
+        }
+        Console.WriteLine($"{source}: {records.Count - before} new records, {recipes.Count - recipesBefore} new recipe files{(index ? ", the index" : "")}");
     }
-    finally { try { Directory.Delete(work, true); } catch { } }
-    Console.WriteLine($"{written} of {want.Count} programs written");
+    if (indexBytes == null) throw new Exception("no index: give a shader-manifest.bin or an index.tsv(.br) as a source");
+    string temp = args[1] + ".tmp";
+    using (var output = File.Create(temp))
+    {
+        output.Write("RYGTMAN1"u8);
+        using var brotli = new System.IO.Compression.BrotliStream(output, System.IO.Compression.CompressionLevel.SmallestSize);
+        using var w = new BinaryWriter(brotli);
+        w.Write(records.Count + recipes.Count + 1);
+        foreach (var (name, bytes) in records.Concat(recipes))
+        {
+            w.Write("CUSA03220.manifest/" + name);
+            w.Write(bytes.Length);
+            w.Write(bytes);
+        }
+        w.Write("index.tsv");
+        w.Write(indexBytes.Length);
+        w.Write(indexBytes);
+    }
+    File.Move(temp, args[1], true);
+    Console.WriteLine($"{records.Count} records, {recipes.Count} recipe files ({string.Join(", ", recipes.Keys)}) and the index: {new FileInfo(args[1]).Length / 1024} KB");
+    return 0;
+}
+
+if (mode == "manifestprep")
+{
+    // FEAT-GTS-284: manifestprep <game> <update or ""> <shader-manifest.bin> <cache dir>: what Set up
+    // does with the shipped manifest (manifestpack). Writes its records and recipes into
+    // <cache dir>\CUSA03220.manifest (records already there are kept; the shipped recipe files are
+    // replaced) and copies each recorded program out of the player's own game files into
+    // <cache dir>\CUSA03220-programs (programs already there are kept). The renderer translates
+    // the records on the splash screen and imports the recipes (shadGT FEAT-GTS-470/471).
+    string game = args[1], update = args[2], cache = args[4];
+    string manifest = Path.Combine(cache, "CUSA03220.manifest");
+    Directory.CreateDirectory(manifest);
+    var records = new List<string>();
+    string[] index = Array.Empty<string>();
+    int written = 0, recipes = 0;
+    foreach (var (name, bytes) in GameShaders.ReadManifestBundle(args[3]))
+    {
+        if (name == "index.tsv")
+        {
+            index = System.Text.Encoding.UTF8.GetString(bytes).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            continue;
+        }
+        if (!name.StartsWith("CUSA03220.manifest/")) continue;
+        string file = Path.GetFileName(name);
+        string target = Path.Combine(manifest, file);
+        if (file.EndsWith(".rec"))
+        {
+            records.Add(file);
+            if (File.Exists(target)) continue;
+            File.WriteAllBytes(target + ".tmp", bytes);
+            File.Move(target + ".tmp", target, true);
+            written++;
+        }
+        else if (file.EndsWith(".rcp"))
+        {
+            File.WriteAllBytes(target + ".tmp", bytes);
+            File.Move(target + ".tmp", target, true);
+            recipes++;
+        }
+    }
+    var idx = new List<string>();
+    if (!string.IsNullOrEmpty(update)) idx.Add(Path.Combine(update, "gt.idx"));
+    idx.Add(Path.Combine(game, "gt.idx"));
+    var want = GameShaders.RecordPrograms(records);
+    var (present, copied, files, seconds) = GameShaders.ExtractPrograms(idx, index, want, Path.Combine(cache, "CUSA03220-programs"));
+    Console.WriteLine($"{written} of {records.Count} records and {recipes} recipe files written; " +
+                      $"{copied} programs copied from the game files ({present} of {want.Count} there already, " +
+                      $"{want.Count - present - copied} not found) in {seconds:F0} s");
     return 0;
 }
 
@@ -262,7 +404,7 @@ if (mode == "shaderpack")
     // (identical.txt: record name, program hash; from the renderer's SHADGT_REPLAY_TEST) and
     // where each record's program is in the game's files. No translated shaders.
     var index = new Dictionary<ulong, (string path, long footer, int length)>();
-    foreach (var line in File.ReadLines(args[1]))
+    foreach (var line in GameShaders.ReadIndex(args[1]))
     {
         var f = line.Split('\t');
         index.TryAdd(Convert.ToUInt64(f[0], 16), (f[1], long.Parse(f[2]), int.Parse(f[3])));

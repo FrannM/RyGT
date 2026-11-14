@@ -2349,9 +2349,10 @@ namespace RyGT
             shaderObjectTip.SetToolTip(shaderObjects, "Experimental: may cause rendering issues. Unavailable on AMD GPUs.");
             // FEAT-GTS-445 (from RyGT7's PERF-GT7-111/117 and PERF-GT7-108; RyGT-Team/rygt7#3): shader
             // pre-translation (SHADGT_MANIFEST_RECORD / SHADGT_MANIFEST_PRETRANSLATE) and the compile pack
-            // (SHADGT_COMPILE_PACK), both off unless checked.
+            // (SHADGT_COMPILE_PACK). FEAT-GTS-285: pre-translation is on unless unchecked (the
+            // renderer's default since shadGT FEAT-GTS-478); the compile pack is off unless checked.
             AddOption(shaders, "Rebuild translated shaders in the background after a renderer update",
-                      "GPU", "shader_pretranslate", false);
+                      "GPU", "shader_pretranslate", true);
             AddOption(shaders, "Compile the shaders already seen on this PC at start, after a driver update (needs shader objects; may pause races)",
                       "GPU", "compile_pack", false);
             // What the game does while a new shader compiles during play (GPU.compile_mode).
@@ -3773,6 +3774,12 @@ namespace RyGT
                 if (!PrepareShaders(baseDir, updateDir))
                     Log("Note: the shaders could not be prepared; they will compile while you play.");
             }
+            if (File.Exists(ShaderManifest))
+            {
+                SetStatus("Preparing shaders from your game files (a few minutes)...");
+                if (!PrepareShaderManifest(baseDir, updateDir))
+                    Log("Note: the shaders could not be prepared; they will compile while you play.");
+            }
 
             GameBuildIntegrity.Record(Exe);
             Log("Recorded GTSport.exe SHA-256: " + GameBuildIntegrity.Hash(Exe));
@@ -3859,6 +3866,62 @@ namespace RyGT
         // pause the game the first time a car or track shows up.
         string ShaderPack { get { return Path.Combine(root, "tools", "adcpatch", "shaders.pack"); } }
         string ShaderPackStamp { get { return Path.Combine(ShaderFolder, "shaders-pack.txt"); } }
+
+        // FEAT-GTS-284: tools\adcpatch\shader-manifest.bin (adcpatch manifestpack): the shader
+        // manifest RyGT's players have built (records of shader translations and pipeline recipes,
+        // no shader code) and the index of where each program is in the game's files.
+        // manifestprep writes them into the shader folder and copies each recorded program out of
+        // this PC's game files; the renderer translates them and builds their pipelines on the
+        // splash screen. Records and programs already there are kept, so a newer manifest only
+        // adds its new ones (seconds) after the first time (about two minutes).
+        string ShaderManifest { get { return Path.Combine(root, "tools", "adcpatch", "shader-manifest.bin"); } }
+        string ShaderManifestStamp { get { return Path.Combine(ShaderFolder, "shader-manifest.txt"); } }
+
+        bool ShaderManifestOutdated()
+        {
+            if (!File.Exists(ShaderManifest)) return false;
+            try { return !File.Exists(ShaderManifestStamp) || File.ReadAllText(ShaderManifestStamp).Trim() != ToolHash(ShaderManifest); }
+            catch { return true; }
+        }
+
+        bool PrepareShaderManifest(string baseDir, string updateDir)
+        {
+            string tool = Path.Combine(root, "tools", "adcpatch", "adcpatch.exe");
+            if (!File.Exists(tool) || !File.Exists(ShaderManifest)) return false;
+            string cache = ShaderFolder;
+            Directory.CreateDirectory(cache);
+            Func<string, string> arg = d => "\"" + (d ?? "").TrimEnd('\\') + "\"";
+            string arguments = "manifestprep " + arg(baseDir) + " " + arg(updateDir) + " " + arg(ShaderManifest) + " " + arg(cache);
+            Log("> adcpatch.exe " + arguments);
+            var info = new ProcessStartInfo(tool, arguments)
+            {
+                WorkingDirectory = Path.GetDirectoryName(tool), UseShellExecute = false, CreateNoWindow = true,
+                RedirectStandardOutput = true, RedirectStandardError = true
+            };
+            var lines = new List<string>();
+            using (var process = new Process { StartInfo = info })
+            {
+                DataReceivedEventHandler collect = delegate (object sender, DataReceivedEventArgs e)
+                {
+                    if (e.Data == null) return;
+                    lock (lines) lines.Add(e.Data);
+                    if (e.Data.Contains(" programs copied")) Log(e.Data);
+                };
+                process.OutputDataReceived += collect;
+                process.ErrorDataReceived += collect;
+                process.Start();
+                process.BeginOutputReadLine();
+                process.BeginErrorReadLine();
+                process.WaitForExit();
+                lock (lines)
+                {
+                    try { File.WriteAllLines(Path.Combine(Path.GetDirectoryName(tool), "manifestprep.log"), lines); } catch { }
+                }
+                if (process.ExitCode != 0) return false;
+                try { File.WriteAllText(ShaderManifestStamp, ToolHash(ShaderManifest)); } catch { }
+                return true;
+            }
+        }
 
         void RequireGameClosedForShaderPreparation()
         {
@@ -4272,6 +4335,13 @@ namespace RyGT
                         try { PrepareShaders(gameDir, updateDir); }
                         catch (Exception e) { Log("Shaders: " + e.Message); }
                     }
+                    // FEAT-GTS-284: a newer shipped shader manifest: its new records and programs.
+                    if (ShaderManifestOutdated() && Directory.Exists(gameDir))
+                    {
+                        SetStatus("Preparing shaders from your game files (a few minutes the first time)...");
+                        try { PrepareShaderManifest(gameDir, updateDir); }
+                        catch (Exception e) { Log("Shaders: " + e.Message); }
+                    }
                     verified = true;
                 }
                 catch (Exception e) { failure = e; Log("ERROR: " + e.Message); }
@@ -4291,7 +4361,7 @@ namespace RyGT
                                    !ReadSetting("GPU", "dlssg_enabled", false);
                     bool shaderObjects = ReadSetting("GPU", "shader_objects", false);
                     StartGame(root, settings.HddStreaming, experimentalSceneSize, antiLag, shaderObjects,
-                              ReadSetting("GPU", "shader_pretranslate", false), ReadSetting("GPU", "compile_pack", false),
+                              ReadSetting("GPU", "shader_pretranslate", true), ReadSetting("GPU", "compile_pack", false),
                               CustomEnvironment.Copy(settings.Env));
                     status.Text = "GT Sport is starting. Logs: logs\\stdout.log and logs\\stderr.log.";
                 }));
@@ -4343,10 +4413,18 @@ namespace RyGT
                         // driver cache lacks (after a driver update) are compiled at start from the recipes
                         // kept. Only when checked, so a script that sets them itself keeps its setting (and
                         // the Advanced page, applied below, still wins).
-                        if (shaderPretranslate)
+                        // FEAT-GTS-284: and always once the shipped shader manifest is prepared: its
+                        // records are translated on the splash screen (the ones the store has are
+                        // skipped in a moment). FEAT-GTS-285: on by default (the renderer's default
+                        // too), so unchecked turns it off.
+                        if (shaderPretranslate || File.Exists(Path.Combine(root, "shaders", "shader-manifest.txt")))
                         {
                             start.EnvironmentVariables["SHADGT_MANIFEST_RECORD"] = "1";
                             start.EnvironmentVariables["SHADGT_MANIFEST_PRETRANSLATE"] = "1";
+                        }
+                        else
+                        {
+                            start.EnvironmentVariables["SHADGT_MANIFEST_PRETRANSLATE"] = "0";
                         }
                         if (compilePack) start.EnvironmentVariables["SHADGT_COMPILE_PACK"] = "1";
                         // FEAT-GTS-433: the user's list last, so it wins; only the count is logged.

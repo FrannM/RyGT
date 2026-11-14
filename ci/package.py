@@ -19,6 +19,9 @@ REPOSITORY_FILES = (('loader/launcher/background.png', 'launcher/background.png'
                     ('docs/user/LINUX.md', 'LINUX.txt'),
                     ('docs/user/CAMERA_MANAGER.md', 'CAMERA_MANAGER.txt'),
                     ('ci/packaging/CUSA03220.json', 'user/custom_configs/CUSA03220.json'),
+                    # FEAT-GTS-284: the shared shader manifest (records, pipeline recipes, the shader
+                    # index; no shader code), made with adcpatch manifestpack.
+                    ('ci/packaging/shader-manifest.bin', 'tools/adcpatch/shader-manifest.bin'),
                     ('tools/amd/Add-To-AMD-Software.ps1', 'tools/amd/Add-To-AMD-Software.ps1'),
                     ('LICENSE', 'LICENSE'))
 

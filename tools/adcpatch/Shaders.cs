@@ -10,6 +10,118 @@ static class GameShaders
 {
     static readonly byte[] Signature = "OrbShdr"u8.ToArray();
 
+    /// FEAT-GTS-284: the entries of a shader-manifest.bin (adcpatch manifestpack).
+    public static IEnumerable<(string name, byte[] bytes)> ReadManifestBundle(string path)
+    {
+        using var input = File.OpenRead(path);
+        var magic = new byte[8];
+        input.ReadExactly(magic);
+        if (!magic.AsSpan().SequenceEqual("RYGTMAN1"u8)) throw new Exception(path + ": not a RyGT shader manifest");
+        using var br = new System.IO.Compression.BrotliStream(input, System.IO.Compression.CompressionMode.Decompress);
+        using var r = new BinaryReader(br);
+        int count = r.ReadInt32();
+        for (int i = 0; i < count; i++)
+        {
+            string name = r.ReadString();
+            yield return (name, r.ReadBytes(r.ReadInt32()));
+        }
+    }
+
+    /// FEAT-GTS-284: the programs of manifest records, from their file names
+    /// (<program>-<SPIR-V hash>.rec).
+    public static HashSet<ulong> RecordPrograms(IEnumerable<string> recordFiles)
+    {
+        var want = new HashSet<ulong>();
+        foreach (var rec in recordFiles)
+        {
+            string name = Path.GetFileNameWithoutExtension(rec);
+            if (name.Length > 16 && name[16] == '-' &&
+                ulong.TryParse(name[..16], System.Globalization.NumberStyles.HexNumber, null, out var h))
+                want.Add(h);
+        }
+        return want;
+    }
+
+    /// Copies each wanted program the index places (from its first instruction through its footer)
+    /// out of the game's volumes into outDir as <hash>.bin, skipping programs already there.
+    /// FIX-GTS-281: one pass over the volumes, unpacking only the files that hold wanted programs,
+    /// on ADCPATCH_THREADS threads (default 6). Each file is written whole or not at all
+    /// (FIX-GTS-282), so a kept file is complete.
+    public static (int present, int written, int files, double seconds) ExtractPrograms(
+        IEnumerable<string> indexFiles, IEnumerable<string> indexLines, HashSet<ulong> wanted, string outDir)
+    {
+        Directory.CreateDirectory(outDir);
+        var want = new HashSet<ulong>(wanted);
+        int present = want.RemoveWhere(h => File.Exists(Path.Combine(outDir, $"{h:x16}.bin")));
+        var index = new Dictionary<ulong, (string path, long footer, int length)>();
+        foreach (var line in indexLines)
+        {
+            var f = line.Split('\t');
+            if (f.Length < 4) continue;
+            ulong h = Convert.ToUInt64(f[0], 16);
+            if (want.Contains(h)) index[h] = (f[1], long.Parse(f[2]), int.Parse(f[3]));
+        }
+        var groups = index.GroupBy(kv => kv.Value.path, StringComparer.OrdinalIgnoreCase)
+                          .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+        string work = Path.Combine(Path.GetTempPath(), "rygt-programs-" + Environment.ProcessId);
+        int written = 0;
+        var started = DateTime.UtcNow;
+        try
+        {
+            int threads = int.TryParse(Environment.GetEnvironmentVariable("ADCPATCH_THREADS"), out var t) && t > 0 ? t : 6;
+            if (groups.Count > 0)
+            {
+                ForEachWantedFile(indexFiles, work, path => groups.ContainsKey(path), (path, data) =>
+                {
+                    foreach (var (hash, e) in groups[path])
+                    {
+                        int start = CodeStart(data, e.footer);
+                        if (start < 0) continue;
+                        string target = Path.Combine(outDir, $"{hash:x16}.bin");
+                        File.WriteAllBytes(target + ".tmp", data[start..(int)(e.footer + 32)]);
+                        File.Move(target + ".tmp", target, true);
+                        Interlocked.Increment(ref written);
+                    }
+                }, threads);
+            }
+        }
+        finally { try { Directory.Delete(work, true); } catch { } }
+        return (present, written, groups.Count, (DateTime.UtcNow - started).TotalSeconds);
+    }
+
+    /// FIX-GTS-283: the shader index's lines; a name ending in .br is Brotli-compressed (the
+    /// shipped form: 212,692 programs are 10.7 MB as text, 2.1 MB compressed, mostly their IDs).
+    public static IEnumerable<string> ReadIndex(string path)
+    {
+        if (!path.EndsWith(".br", StringComparison.OrdinalIgnoreCase))
+        {
+            foreach (var line in File.ReadLines(path)) yield return line;
+            yield break;
+        }
+        using var file = File.OpenRead(path);
+        using var brotli = new System.IO.Compression.BrotliStream(file, System.IO.Compression.CompressionMode.Decompress);
+        using var reader = new StreamReader(brotli);
+        while (reader.ReadLine() is { } line) yield return line;
+    }
+
+    /// Writes the index ordered by file and footer offset (it compresses better: a file's
+    /// offsets are near each other), compressed when the name ends in .br.
+    public static void WriteIndex(string path, IEnumerable<string> lines)
+    {
+        var ordered = lines.Select(l => (line: l, f: l.Split('\t')))
+                           .OrderBy(x => x.f[1], StringComparer.Ordinal)
+                           .ThenBy(x => long.Parse(x.f[2]))
+                           .Select(x => x.line);
+        using var file = File.Create(path);
+        Stream output = path.EndsWith(".br", StringComparison.OrdinalIgnoreCase)
+            ? new System.IO.Compression.BrotliStream(file, System.IO.Compression.CompressionLevel.SmallestSize)
+            : file;
+        using (var writer = new StreamWriter(output) { NewLine = "\n" })
+        {
+            foreach (var line in ordered) writer.WriteLine(line);
+        }
+    }
+
     /// (hash, footer offset, code length) of every program in the data.
     public static List<(ulong hash, long footer, int length)> Find(byte[] data)
     {
@@ -60,11 +172,83 @@ static class GameShaders
         ".OTF", ".TTF", ".SVG", ".JSON", ".TXT", ".ADC", ".MPROJECT", ".ECP", ".CSS", ".JS",
     };
 
-    /// Walks every file of the volumes (the update's first; a path is read once) and calls
-    /// visit(path, bytes) for each file that may hold shaders.
-    public static void ForEachFile(IEnumerable<string> indexFiles, string tempDir,
-                                   Action<string, byte[]> visit)
+    /// FIX-GTS-281: the given files of the volumes (the update's first; a path is read once),
+    /// unpacked on several threads, each with its own volume handle and temp file; visit runs on
+    /// those threads. Unpacking (decryption, decompression) is single-threaded per file, and one
+    /// track pack after another kept one core busy. threads is kept low: each holds a whole file
+    /// (track packs are hundreds of MB). Returns how many failed.
+    public static int ForEachWantedFile(IEnumerable<string> indexFiles, string tempDir,
+                                        Func<string, bool> wanted, Action<string, byte[]> visit,
+                                        int threads)
     {
+        int failed = 0;
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        Directory.CreateDirectory(tempDir);
+        foreach (var index in indexFiles)
+        {
+            if (!File.Exists(index)) continue;
+            var keyset = KeysetStore.Default_Keysets.FirstOrDefault(k =>
+            {
+                using var probe = GTVolumePFS.Load(k, index, false, Syroot.BinaryData.Core.Endian.Little);
+                return probe != null;
+            });
+            if (keyset == null) continue;
+            var work = new List<string>();
+            using (var vol = GTVolumePFS.Load(keyset, index, false, Syroot.BinaryData.Core.Endian.Little))
+            {
+                foreach (var file in vol.BTree.GetAllRegisteredFiles())
+                {
+                    string path = file.Key.Replace('\\', '/');
+                    if (!seen.Add(path) || !wanted(path)) continue;
+                    work.Add(file.Key);
+                }
+            }
+            int next = -1, slot = 0;
+            var workers = new List<Thread>();
+            for (int t = 0; t < Math.Max(1, threads); t++)
+            {
+                string temp = Path.Combine(tempDir, $"part{Interlocked.Increment(ref slot)}.bin");
+                var thread = new Thread(() =>
+                {
+                    using var vol = GTVolumePFS.Load(keyset, index, false, Syroot.BinaryData.Core.Endian.Little);
+                    var unpacker = new PFSVolumeUnpacker(vol);
+                    var infos = new Dictionary<uint, GTToolsSharp.BTree.FileInfoKey>();
+                    foreach (var info in vol.BTree.FileInfos.Entries) infos[info.FileIndex] = info;
+                    var files = vol.BTree.GetAllRegisteredFiles();
+                    for (int i = Interlocked.Increment(ref next); i < work.Count; i = Interlocked.Increment(ref next))
+                    {
+                        string key = work[i];
+                        string path = key.Replace('\\', '/');
+                        try
+                        {
+                            if (File.Exists(temp)) File.Delete(temp);
+                            if (!unpacker.UnpackFile(infos[files[key].EntryIndex], path, temp) || !File.Exists(temp)) continue;
+                            visit(path, File.ReadAllBytes(temp));
+                        }
+                        catch (Exception e)
+                        {
+                            Interlocked.Increment(ref failed);
+                            Console.Error.WriteLine($"skipped {path}: {e.GetType().Name}: {e.Message}");
+                        }
+                    }
+                    if (File.Exists(temp)) File.Delete(temp);
+                });
+                thread.Start();
+                workers.Add(thread);
+            }
+            foreach (var thread in workers) thread.Join();
+        }
+        return failed;
+    }
+
+    /// Walks every file of the volumes (the update's first; a path is read once) and calls
+    /// visit(path, bytes) for each file that may hold shaders. FIX-GTS-281: a file that fails to
+    /// unpack or to scan is reported and skipped (one bad file ended a 95 GB scan with nothing
+    /// written); returns how many failed.
+    public static int ForEachFile(IEnumerable<string> indexFiles, string tempDir,
+                                  Action<string, byte[]> visit, Func<string, bool> wanted = null)
+    {
+        int failed = 0;
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         Directory.CreateDirectory(tempDir);
         string temp = Path.Combine(tempDir, "scan.bin");
@@ -87,18 +271,28 @@ static class GameShaders
                 {
                     string path = file.Key.Replace('\\', '/');
                     if (!seen.Add(path) || SkipExtensions.Contains(Path.GetExtension(path))) continue;
-                    if (File.Exists(temp)) File.Delete(temp);
-                    var quiet = Console.Out;
-                    Console.SetOut(TextWriter.Null);
-                    bool ok;
-                    try { ok = unpacker.UnpackFile(infos[file.Value.EntryIndex], path, temp); }
-                    finally { Console.SetOut(quiet); }
-                    if (!ok || !File.Exists(temp)) continue;
-                    visit(path, File.ReadAllBytes(temp));
+                    if (wanted != null && !wanted(path)) continue; // FIX-GTS-281: only these files
+                    try
+                    {
+                        if (File.Exists(temp)) File.Delete(temp);
+                        var quiet = Console.Out;
+                        Console.SetOut(TextWriter.Null);
+                        bool ok;
+                        try { ok = unpacker.UnpackFile(infos[file.Value.EntryIndex], path, temp); }
+                        finally { Console.SetOut(quiet); }
+                        if (!ok || !File.Exists(temp)) continue;
+                        visit(path, File.ReadAllBytes(temp));
+                    }
+                    catch (Exception e)
+                    {
+                        failed++;
+                        Console.Error.WriteLine($"skipped {path}: {e.GetType().Name}: {e.Message}");
+                    }
                 }
             }
         }
         if (File.Exists(temp)) File.Delete(temp);
+        return failed;
     }
 
 }
