@@ -10,6 +10,39 @@ static class GameShaders
 {
     static readonly byte[] Signature = "OrbShdr"u8.ToArray();
 
+    /// FIX-GTS-283: the shader index's lines; a name ending in .br is Brotli-compressed (the
+    /// shipped form: 212,692 programs are 10.7 MB as text, 2.1 MB compressed, mostly their IDs).
+    public static IEnumerable<string> ReadIndex(string path)
+    {
+        if (!path.EndsWith(".br", StringComparison.OrdinalIgnoreCase))
+        {
+            foreach (var line in File.ReadLines(path)) yield return line;
+            yield break;
+        }
+        using var file = File.OpenRead(path);
+        using var brotli = new System.IO.Compression.BrotliStream(file, System.IO.Compression.CompressionMode.Decompress);
+        using var reader = new StreamReader(brotli);
+        while (reader.ReadLine() is { } line) yield return line;
+    }
+
+    /// Writes the index ordered by file and footer offset (it compresses better: a file's
+    /// offsets are near each other), compressed when the name ends in .br.
+    public static void WriteIndex(string path, IEnumerable<string> lines)
+    {
+        var ordered = lines.Select(l => (line: l, f: l.Split('\t')))
+                           .OrderBy(x => x.f[1], StringComparer.Ordinal)
+                           .ThenBy(x => long.Parse(x.f[2]))
+                           .Select(x => x.line);
+        using var file = File.Create(path);
+        Stream output = path.EndsWith(".br", StringComparison.OrdinalIgnoreCase)
+            ? new System.IO.Compression.BrotliStream(file, System.IO.Compression.CompressionLevel.SmallestSize)
+            : file;
+        using (var writer = new StreamWriter(output) { NewLine = "\n" })
+        {
+            foreach (var line in ordered) writer.WriteLine(line);
+        }
+    }
+
     /// (hash, footer offset, code length) of every program in the data.
     public static List<(ulong hash, long footer, int length)> Find(byte[] data)
     {

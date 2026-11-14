@@ -241,7 +241,7 @@ if (mode == "shaderindex")
             }
         });
     }
-    File.WriteAllLines(args[3], found.Values.OrderBy(x => x));
+    GameShaders.WriteIndex(args[3], found.Values); // FIX-GTS-283: .br for the shipped form
     File.Delete(partial);
     Console.WriteLine($"{found.Count} programs in {files} files ({failed} skipped) in {(DateTime.UtcNow - started).TotalMinutes:F1} min");
     Console.WriteLine("files with new programs by type: " +
@@ -279,7 +279,7 @@ if (mode == "shadercodes")
     int wantedCount = want.Count;
     int present = want.RemoveWhere(h => File.Exists(Path.Combine(args[5], $"{h:x16}.bin")));
     var index = new Dictionary<ulong, (string path, long footer, int length)>();
-    foreach (var line in File.ReadLines(args[3]))
+    foreach (var line in GameShaders.ReadIndex(args[3]))
     {
         var f = line.Split('\t');
         ulong h = Convert.ToUInt64(f[0], 16);
@@ -322,7 +322,7 @@ if (mode == "shaderpack")
     // (identical.txt: record name, program hash; from the renderer's SHADGT_REPLAY_TEST) and
     // where each record's program is in the game's files. No translated shaders.
     var index = new Dictionary<ulong, (string path, long footer, int length)>();
-    foreach (var line in File.ReadLines(args[1]))
+    foreach (var line in GameShaders.ReadIndex(args[1]))
     {
         var f = line.Split('\t');
         index.TryAdd(Convert.ToUInt64(f[0], 16), (f[1], long.Parse(f[2]), int.Parse(f[3])));
