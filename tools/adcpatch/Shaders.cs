@@ -60,12 +60,81 @@ static class GameShaders
         ".OTF", ".TTF", ".SVG", ".JSON", ".TXT", ".ADC", ".MPROJECT", ".ECP", ".CSS", ".JS",
     };
 
+    /// FIX-GTS-281: the given files of the volumes (the update's first; a path is read once),
+    /// unpacked on several threads, each with its own volume handle and temp file; visit runs on
+    /// those threads. Unpacking (decryption, decompression) is single-threaded per file, and one
+    /// track pack after another kept one core busy. threads is kept low: each holds a whole file
+    /// (track packs are hundreds of MB). Returns how many failed.
+    public static int ForEachWantedFile(IEnumerable<string> indexFiles, string tempDir,
+                                        Func<string, bool> wanted, Action<string, byte[]> visit,
+                                        int threads)
+    {
+        int failed = 0;
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        Directory.CreateDirectory(tempDir);
+        foreach (var index in indexFiles)
+        {
+            if (!File.Exists(index)) continue;
+            var keyset = KeysetStore.Default_Keysets.FirstOrDefault(k =>
+            {
+                using var probe = GTVolumePFS.Load(k, index, false, Syroot.BinaryData.Core.Endian.Little);
+                return probe != null;
+            });
+            if (keyset == null) continue;
+            var work = new List<string>();
+            using (var vol = GTVolumePFS.Load(keyset, index, false, Syroot.BinaryData.Core.Endian.Little))
+            {
+                foreach (var file in vol.BTree.GetAllRegisteredFiles())
+                {
+                    string path = file.Key.Replace('\\', '/');
+                    if (!seen.Add(path) || !wanted(path)) continue;
+                    work.Add(file.Key);
+                }
+            }
+            int next = -1, slot = 0;
+            var workers = new List<Thread>();
+            for (int t = 0; t < Math.Max(1, threads); t++)
+            {
+                string temp = Path.Combine(tempDir, $"part{Interlocked.Increment(ref slot)}.bin");
+                var thread = new Thread(() =>
+                {
+                    using var vol = GTVolumePFS.Load(keyset, index, false, Syroot.BinaryData.Core.Endian.Little);
+                    var unpacker = new PFSVolumeUnpacker(vol);
+                    var infos = new Dictionary<uint, GTToolsSharp.BTree.FileInfoKey>();
+                    foreach (var info in vol.BTree.FileInfos.Entries) infos[info.FileIndex] = info;
+                    var files = vol.BTree.GetAllRegisteredFiles();
+                    for (int i = Interlocked.Increment(ref next); i < work.Count; i = Interlocked.Increment(ref next))
+                    {
+                        string key = work[i];
+                        string path = key.Replace('\\', '/');
+                        try
+                        {
+                            if (File.Exists(temp)) File.Delete(temp);
+                            if (!unpacker.UnpackFile(infos[files[key].EntryIndex], path, temp) || !File.Exists(temp)) continue;
+                            visit(path, File.ReadAllBytes(temp));
+                        }
+                        catch (Exception e)
+                        {
+                            Interlocked.Increment(ref failed);
+                            Console.Error.WriteLine($"skipped {path}: {e.GetType().Name}: {e.Message}");
+                        }
+                    }
+                    if (File.Exists(temp)) File.Delete(temp);
+                });
+                thread.Start();
+                workers.Add(thread);
+            }
+            foreach (var thread in workers) thread.Join();
+        }
+        return failed;
+    }
+
     /// Walks every file of the volumes (the update's first; a path is read once) and calls
     /// visit(path, bytes) for each file that may hold shaders. FIX-GTS-281: a file that fails to
     /// unpack or to scan is reported and skipped (one bad file ended a 95 GB scan with nothing
     /// written); returns how many failed.
     public static int ForEachFile(IEnumerable<string> indexFiles, string tempDir,
-                                  Action<string, byte[]> visit)
+                                  Action<string, byte[]> visit, Func<string, bool> wanted = null)
     {
         int failed = 0;
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -90,6 +159,7 @@ static class GameShaders
                 {
                     string path = file.Key.Replace('\\', '/');
                     if (!seen.Add(path) || SkipExtensions.Contains(Path.GetExtension(path))) continue;
+                    if (wanted != null && !wanted(path)) continue; // FIX-GTS-281: only these files
                     try
                     {
                         if (File.Exists(temp)) File.Delete(temp);

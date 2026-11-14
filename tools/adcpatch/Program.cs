@@ -202,7 +202,10 @@ if (mode == "shaderindex")
     idx.Add(Path.Combine(args[1], "gt.idx"));
     // FIX-GTS-281: each program is written as it is found (args[3] + ".partial", renamed at the
     // end), so a stop or a crash keeps what was found; and which file types hold programs.
+    // The smallest file holding each program, so extraction (shadercodes) unpacks small files
+    // rather than a track's pack where the same program is in a car's file too.
     var found = new Dictionary<ulong, string>();
+    var foundSize = new Dictionary<ulong, long>();
     var byExtension = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
     int files = 0;
     var started = DateTime.UtcNow;
@@ -220,8 +223,15 @@ if (mode == "shaderindex")
             bool any = false;
             foreach (var (hash, footer, length) in GameShaders.Find(data))
             {
-                if (!found.TryAdd(hash, $"{hash:x16}\t{path}\t{footer}\t{length}")) continue;
-                writer.WriteLine(found[hash]);
+                string line = $"{hash:x16}\t{path}\t{footer}\t{length}";
+                if (found.TryGetValue(hash, out _))
+                {
+                    if (data.Length < foundSize[hash]) { found[hash] = line; foundSize[hash] = data.Length; }
+                    continue;
+                }
+                found[hash] = line;
+                foundSize[hash] = data.Length;
+                writer.WriteLine(line);
                 any = true;
             }
             if (any)
@@ -258,26 +268,28 @@ if (mode == "shadercodes")
     Directory.CreateDirectory(args[5]);
     string work = Path.Combine(Path.GetTempPath(), "rygt-shadercodes-" + Environment.ProcessId);
     int written = 0;
+    // FIX-GTS-281: one pass over the volumes, unpacking only the files that hold wanted programs
+    // (it loaded and walked the whole volume index once per file: 527 files took 8 minutes).
+    var groups = index.GroupBy(kv => kv.Value.path, StringComparer.OrdinalIgnoreCase)
+                      .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+    var started = DateTime.UtcNow;
     try
     {
-        foreach (var group in index.GroupBy(kv => kv.Value.path))
+        // ADCPATCH_THREADS: how many files are unpacked at once (default 6).
+        int threads = int.TryParse(Environment.GetEnvironmentVariable("ADCPATCH_THREADS"), out var t) && t > 0 ? t : 6;
+        GameShaders.ForEachWantedFile(idx, work, path => groups.ContainsKey(path), (path, data) =>
         {
-            GameFiles.Extract(idx, new[] { group.Key }, work);
-            string file = Path.Combine(work, group.Key.ToUpperInvariant().Replace('/', Path.DirectorySeparatorChar));
-            if (!File.Exists(file)) continue;
-            var data = File.ReadAllBytes(file);
-            File.Delete(file);
-            foreach (var (hash, e) in group)
+            foreach (var (hash, e) in groups[path])
             {
                 int start = GameShaders.CodeStart(data, e.footer);
                 if (start < 0) continue;
                 File.WriteAllBytes(Path.Combine(args[5], $"{hash:x16}.bin"), data[start..(int)(e.footer + 32)]);
-                written++;
+                Interlocked.Increment(ref written);
             }
-        }
+        }, threads);
     }
     finally { try { Directory.Delete(work, true); } catch { } }
-    Console.WriteLine($"{written} of {want.Count} programs written");
+    Console.WriteLine($"{written} of {want.Count} programs written from {groups.Count} files in {(DateTime.UtcNow - started).TotalSeconds:F0} s");
     return 0;
 }
 
