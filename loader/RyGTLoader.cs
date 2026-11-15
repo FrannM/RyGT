@@ -918,6 +918,7 @@ namespace RyGT
         /// FEAT-GTS-272: the updater's notice (a newer build) at the top right, above its Update button.
         public string Notice = "";
         public GlowButton UpdateButton;
+        public GlowButton ChangelogButton; // FIX-GTS-286: left of UpdateButton
         const int NoticeTop = 30, NoticeWidth = 420;
         int NoticeHeight
         {
@@ -1079,6 +1080,8 @@ namespace RyGT
             }
             if (UpdateButton != null)
                 UpdateButton.Location = new Point(Width - UpdateButton.Width - 30, NoticeTop + NoticeHeight + 14);
+            if (UpdateButton != null && ChangelogButton != null)
+                ChangelogButton.Location = new Point(UpdateButton.Left - ChangelogButton.Width - 10, UpdateButton.Top);
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -1564,6 +1567,105 @@ namespace RyGT
         }
     }
 
+    /// FIX-GTS-286: a release's notes, one entry per heading, paragraph or bullet; headings bold, nested
+    /// bullets indented, long entries wrapped. Scrolled by pixels, so it ends where the text ends.
+    class ChangelogDialog : Form
+    {
+        sealed class NotesView : Control
+        {
+            readonly List<KeyValuePair<int, string>> entries;
+            readonly Font heading;
+            readonly List<Rectangle> areas = new List<Rectangle>();
+            const TextFormatFlags Flags = TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.Left;
+
+            public NotesView(List<KeyValuePair<int, string>> entries, Font font)
+            {
+                this.entries = entries;
+                Font = font;
+                heading = new Font(font, FontStyle.Bold);
+                SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+            }
+
+            static int Indent(int level) { return level == 0 ? 8 : level == 1 ? 24 : 42; }
+
+            /// Lays the entries out for `width`; the height they take.
+            public int Layout(int width)
+            {
+                areas.Clear();
+                int y = 6;
+                foreach (var entry in entries)
+                {
+                    if (entry.Key == 0 && y > 6) y += 10;
+                    int x = Indent(entry.Key), w = Math.Max(100, width - x - 12);
+                    var size = TextRenderer.MeasureText(entry.Value, entry.Key == 0 ? heading : Font, new Size(w, 0), Flags);
+                    areas.Add(new Rectangle(x, y, w, size.Height));
+                    y += size.Height + 6;
+                }
+                return y + 4;
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                e.Graphics.Clear(BackColor);
+                for (int k = 0; k < entries.Count && k < areas.Count; ++k)
+                {
+                    var area = areas[k];
+                    if (!e.ClipRectangle.IntersectsWith(area)) continue;
+                    var entry = entries[k];
+                    if (entry.Key > 0)
+                        TextRenderer.DrawText(e.Graphics, entry.Key == 1 ? "\u2022" : "\u2013", Font, new Point(area.X - 13, area.Y), Dark.DimText, TextFormatFlags.NoPrefix);
+                    TextRenderer.DrawText(e.Graphics, entry.Value, entry.Key == 0 ? heading : Font, area, entry.Key == 0 ? Color.White : Dark.Text, Flags);
+                }
+            }
+
+            protected override void Dispose(bool disposing)
+            {
+                if (disposing) heading.Dispose();
+                base.Dispose(disposing);
+            }
+        }
+
+        public ChangelogDialog(ReleaseInfo release)
+        {
+            Text = release.Name.Length > 0 ? release.Name : "Changelog";
+            try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { } // the launcher's logo
+            StartPosition = FormStartPosition.CenterParent;
+            ShowInTaskbar = false;
+            MinimizeBox = false;
+            ClientSize = new Size(760, 560);
+            MinimumSize = new Size(420, 300);
+            Font = new Font("Segoe UI", 9.5f);
+            Padding = new Padding(12);
+            var scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Dark.Field };
+            var view = new NotesView(release.Changes(), Font) { BackColor = Dark.Field, Location = new Point(0, 0) };
+            scroll.Controls.Add(view);
+            // The view is as tall as its text, so the panel scrolls exactly to its end.
+            Action fit = delegate
+            {
+                int width = scroll.ClientSize.Width;
+                int height = view.Layout(width);
+                if (height > scroll.ClientSize.Height && !scroll.VerticalScroll.Visible)
+                    height = view.Layout(width - SystemInformation.VerticalScrollBarWidth); // room for the bar
+                view.Size = new Size(Math.Max(1, scroll.ClientSize.Width), height);
+                view.Invalidate();
+            };
+            scroll.Resize += delegate { fit(); };
+            scroll.MouseEnter += delegate { scroll.Focus(); };
+            view.MouseEnter += delegate { scroll.Focus(); };
+            var close = new Button { Text = "Close", DialogResult = DialogResult.Cancel, AutoSize = true };
+            var bottom = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(0, 10, 0, 0), BackColor = Color.Transparent };
+            bottom.Controls.Add(close);
+            Controls.Add(scroll);
+            Controls.Add(bottom);
+            CancelButton = close;
+            Dark.Apply(this);
+            scroll.BackColor = Dark.Field;
+            view.BackColor = Dark.Field;
+            HandleCreated += delegate { Dark.TitleBar(this); };
+            Shown += delegate { fit(); scroll.Focus(); };
+        }
+    }
+
     class Settings
     {
         public string Game = "", Update = "", Modules = "", Fonts = "";
@@ -1629,6 +1731,7 @@ namespace RyGT
         // Settings: a sidebar of categories and their pages.
         readonly HomeView home;
         readonly GlowButton updateButton; // FEAT-GTS-272
+        readonly GlowButton changelogButton; // FIX-GTS-286
         ReleaseInfo pendingUpdate;
         readonly Panel settingsView, pagesHost, sidebar;
         readonly Curtain curtain;
@@ -1677,6 +1780,15 @@ namespace RyGT
             updateButton.Click += delegate { InstallUpdate(); };
             home.UpdateButton = updateButton;
             home.Controls.Add(updateButton);
+            // FIX-GTS-286: the pending update's release notes, as a list.
+            changelogButton = new GlowButton { Text = "Changelog", Size = new Size(150, 40), Font = Dark.Caps(10f), Visible = false };
+            changelogButton.Click += delegate
+            {
+                if (pendingUpdate == null) return;
+                using (var dialog = new ChangelogDialog(pendingUpdate)) dialog.ShowDialog(this);
+            };
+            home.ChangelogButton = changelogButton;
+            home.Controls.Add(changelogButton);
             curtain = new Curtain { Dock = DockStyle.Fill, Visible = false };
             Controls.Add(curtain);
             Controls.Add(settingsView);
@@ -2479,7 +2591,8 @@ namespace RyGT
         }
 
         /// FEAT-GTS-272: the update channel (Launcher.update_channel): stable (the newest release), prerelease
-        /// (the newest release or pre-release) or nightly (the newest build of development). Nightly by default.
+        /// (the newest release or pre-release) or nightly (the newest build of development). Stable by default
+        /// (FIX-GTS-286: RyGTS publishes releases on GitHub now; it was nightly while there were none).
         string UpdateChannel()
         {
             try
@@ -2487,9 +2600,9 @@ namespace RyGT
                 object section, value;
                 var launcher = LoadConfig().TryGetValue("Launcher", out section) ? section as Dictionary<string, object> : null;
                 string channel = launcher != null && launcher.TryGetValue("update_channel", out value) ? value as string : null;
-                return Array.IndexOf(Updater.Channels, channel) >= 0 ? channel : Updater.Nightly;
+                return Array.IndexOf(Updater.Channels, channel) >= 0 ? channel : Updater.Stable;
             }
-            catch { return Updater.Nightly; }
+            catch { return Updater.Stable; }
         }
 
         static string ChannelName(string channel)
@@ -2521,14 +2634,16 @@ namespace RyGT
         void ShowUpdate(string installed, string channel, ReleaseInfo latest, Exception error, bool manual)
         {
             if (channel != UpdateChannel()) return; // the channel changed meanwhile; that check shows its own
-            if (latest != null && Updater.IsNewer(latest.Version, installed))
+            if (latest != null && Updater.IsNewer(latest, installed, root)) // FIX-GTS-286: not the same build again
             {
                 pendingUpdate = latest;
                 home.Notice = (latest.Artifact ? "A newer RyGTS nightly is available: " + Updater.Display(latest.Version)
                                                : "RyGTS " + latest.Version + (latest.Prerelease ? " (prerelease)" : "") + " is available") +
-                              " (you have " + Updater.Display(installed) + ")." + Environment.NewLine + latest.Summary(240);
-                updateButton.Text = "Update to " + Updater.Display(latest.Version);
+                              " (you have " + Updater.Display(installed) + ")." +
+                              (latest.Changes().Count > 0 ? "" : Environment.NewLine + latest.Summary(240)); // the notes are behind Changelog
+                updateButton.Text = "Update"; // the notice names the version; the button had no room for it
                 updateButton.Visible = true;
+                changelogButton.Visible = latest.Changes().Count > 0;
                 home.PerformLayout();
                 home.Invalidate(true);
             }
@@ -2546,6 +2661,7 @@ namespace RyGT
             pendingUpdate = null;
             home.Notice = "";
             updateButton.Visible = false;
+            changelogButton.Visible = false;
             home.PerformLayout();
             home.Invalidate(true);
         }
@@ -2557,11 +2673,8 @@ namespace RyGT
             if (release == null || busy) return;
             if (MessageBox.Show(this, "Update RyGTS to " + Updater.Display(release.Version) + (release.Prerelease ? " (prerelease)" : "") + "?" +
                                 Environment.NewLine + Environment.NewLine +
-                                "The launcher downloads " + release.ZipName +
-                                (release.Artifact ? " (through nightly.link, as GitHub's own download needs an account)" : "") +
-                                ", checks it, replaces its own program files and restarts. Your game, saves, settings, profiles and shader " +
-                                "caches stay as they are. The old files are kept, so you can roll back from Settings > About.", "Update RyGTS",
-                                MessageBoxButtons.OKCancel) != DialogResult.OK)
+                                "The launcher restarts when it is done. Your game, saves and settings are kept, and you can roll back " +
+                                "from Settings > About.", "Update RyGTS", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK)
                 return;
             busy = true;
             updateButton.Enabled = false;
@@ -2617,7 +2730,7 @@ namespace RyGT
             var label = new Label
             {
                 Text = "Launcher " + LauncherVersion.Value + (installed == null ? "" : " (" + Updater.Display(installed) + ")"),
-                AutoSize = false, Width = 196, Height = 20, BackColor = Color.Transparent, Margin = new Padding(0, 6, 8, 0)
+                AutoSize = true, MinimumSize = new Size(196, 20), BackColor = Color.Transparent, Margin = new Padding(0, 6, 8, 0) // FIX-GTS-286: not cut off
             };
             var check = new Button { Text = "Check now", AutoSize = true, Margin = new Padding(0, 0, 6, 0) };
             check.Click += delegate { CheckForUpdate(true); };

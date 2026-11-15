@@ -6,11 +6,24 @@ The version lives in `loader/Version.cs`. To release a change, bump
 `LauncherVersion.Value` there and add a section here with the same number;
 CI fails when the two disagree.
 
-## 0.2.2 - 2026-11-13
+## 0.2.2 - 2026-11-15
 
 * FEAT-GTS-287: Settings > About carries NVIDIA's DLSS attribution, as the NVIDIA RTX SDKs License
   asks of software shipping its NGX loader: the package now includes the DLSS plugin
   (dlss\ryGT_dlss.dll), which contains it. NVIDIA's runtime still comes from the download button.
+
+## 0.2.1 - 2026-11-15
+
+* FIX-GTS-286: A Changelog button beside Update opens the update's release notes as a list (headings,
+  bullets and nested bullets, wrapped). Settings > About > Updates shows the whole installed version
+  ("Launcher 0.2.1 (nightly 2a662886)"); its closing parenthesis was cut off.
+* FIX-GTS-286: The updater found no GitHub release: it looked for tags starting gts- and packages
+  named RyGTS-*.zip, and the releases are published as gt-sport-2026-11-15 with
+  GTSport-Ryty-shadGT-2026-11-15.zip. It now takes both names, and the package with a .sha256 beside
+  it. A build from the same commit as the installed one is not offered again on another channel
+  (today's release is the newest nightly). Packages whose BUILD_INFO.txt names the commit
+  source_commit are recognised. The update channel is Stable by default now that RyGTS publishes
+  releases (it was Nightly while there were none).
 
 ## 0.2.0 - 2026-11-14
 

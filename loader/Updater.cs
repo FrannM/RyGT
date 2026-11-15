@@ -23,6 +23,8 @@ namespace RyGT
     {
         /// "2026-11-10" for a release, "ci-1a2b3c4d" for a nightly.
         public string Version, Tag, Name, Notes, ZipName, ZipUrl, Sha256;
+        /// FIX-GTS-286: the commit the build is from (a nightly's run, a release's tag), or null.
+        public string Commit;
         /// A nightly: the download is a GitHub Actions artifact (a zip holding the package zip and
         /// its .sha256), which also gives the checksum.
         public bool Artifact;
@@ -30,6 +32,33 @@ namespace RyGT
         public bool Prerelease;
 
         /// The first lines of the notes' "What's new" (or of the notes), for the home view.
+        /// FIX-GTS-286: the notes as a list of entries for the Changelog window: headings (level 0), paragraphs
+        /// and bullets (1), and nested bullets (2), without the Markdown marks.
+        public List<KeyValuePair<int, string>> Changes()
+        {
+            var entries = new List<KeyValuePair<int, string>>();
+            foreach (var raw in (Notes ?? "").Replace("\r", "").Split('\n'))
+            {
+                if (raw.Trim().Length == 0) continue;
+                string line = raw.TrimEnd();
+                int indent = line.Length - line.TrimStart().Length;
+                string text = line.Trim();
+                int level;
+                if (text.StartsWith("#")) { level = 0; text = text.TrimStart('#').Trim(); }
+                else if (text.StartsWith("- ") || text.StartsWith("* ")) { level = indent >= 2 ? 2 : 1; text = text.Substring(2); }
+                else if (entries.Count > 0 && indent >= 2) { var last = entries[entries.Count - 1]; entries[entries.Count - 1] = new KeyValuePair<int, string>(last.Key, last.Value + " " + Plain(text)); continue; }
+                else level = 1;
+                entries.Add(new KeyValuePair<int, string>(level, Plain(text)));
+            }
+            return entries;
+        }
+
+        static string Plain(string text)
+        {
+            text = Regex.Replace(text, @"\[([^\]]*)\]\([^)]*\)", "$1"); // [text](link)
+            return Regex.Replace(text, @"\*\*|`", "");
+        }
+
         public string Summary(int maxLength)
         {
             string text = Notes ?? "";
@@ -46,7 +75,10 @@ namespace RyGT
     {
         // ---- This launcher (the rest of the file is the same in RyGTS and ryGT7).
         const string Repository = "RyGT-Team/RyGTS", Workflow = "ci-package-release.yml", Branch = "development";
-        const string ArtifactPrefix = "ci-", NightlyPrefix = "RyGTS-ci-", PackagePrefix = "RyGTS-", TagPrefix = "gts-";
+        const string ArtifactPrefix = "ci-", NightlyPrefix = "RyGTS-ci-";
+        // FIX-GTS-286: the release tags ("gt-sport-2026-11-15") and package zips ("GTSport-Ryty-shadGT-2026-11-15.zip")
+        // as they are published.
+        static readonly string[] TagPrefixes = { "gt-sport-", "gts-" }, PackagePrefixes = { "GTSport-", "RyGTS-" };
         const string Product = "RyGTS", LauncherExe = "RyGTS.exe", GameProcess = "GTSport";
         static readonly string[] ProtectedFiles = { "RyGT.ini", "GTSport.exe", "GTSport.exe.converted", "setup-out.txt" };
         // ----
@@ -119,7 +151,8 @@ namespace RyGT
                 if (!File.Exists(path)) return null;
                 var info = new JavaScriptSerializer().DeserializeObject(File.ReadAllText(path)) as Dictionary<string, object>;
                 object commit;
-                if (info == null || !info.TryGetValue("commit", out commit)) return null;
+                // FIX-GTS-286: older packages name it source_commit.
+                if (info == null || (!info.TryGetValue("commit", out commit) && !info.TryGetValue("source_commit", out commit))) return null;
                 string text = commit as string ?? "";
                 return Regex.IsMatch(text, "^[0-9a-f]{8,40}$") ? text : null;
             }
@@ -136,6 +169,18 @@ namespace RyGT
         /// Releases are dates with an optional letter for a hotfix (2026-10-27b), so they sort as
         /// text. A nightly is offered when it is another commit than the installed build (the newest
         /// successful run is the one offered), and a release over a nightly and the other way round.
+        /// FIX-GTS-286: a build from the same commit as the installed one is not newer, whatever its channel
+        /// calls it (today's release can be the newest nightly).
+        public static bool IsNewer(ReleaseInfo candidate, string installed, string root)
+        {
+            if (candidate == null) return false;
+            string commit = BuildCommit(root);
+            if (commit != null && !string.IsNullOrEmpty(candidate.Commit) &&
+                (candidate.Commit.StartsWith(commit, StringComparison.OrdinalIgnoreCase) || commit.StartsWith(candidate.Commit, StringComparison.OrdinalIgnoreCase)))
+                return false;
+            return IsNewer(candidate.Version, installed);
+        }
+
         public static bool IsNewer(string candidate, string installed)
         {
             if (installed == null || candidate == null) return false;
@@ -146,7 +191,7 @@ namespace RyGT
         static WebClient Client()
         {
             ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
-            var client = new WebClient();
+            var client = new WebClient { Encoding = System.Text.Encoding.UTF8 }; // FIX-GTS-286: the notes are UTF-8 ("·", not "Â·")
             client.Headers[HttpRequestHeader.UserAgent] = Product + "-launcher";
             return client;
         }
@@ -181,21 +226,27 @@ namespace RyGT
                 string tag = release["tag_name"] as string ?? "";
                 var info = new ReleaseInfo
                 {
-                    Tag = tag, Version = tag.StartsWith(TagPrefix) ? tag.Substring(TagPrefix.Length) : tag, Prerelease = pre,
+                    Tag = tag, Version = WithoutPrefix(tag, TagPrefixes), Prerelease = pre,
                     Name = release["name"] as string ?? tag, Notes = release["body"] as string ?? ""
                 };
                 string shaUrl = null;
-                var assets = release["assets"] as object[] ?? new object[0];
-                foreach (Dictionary<string, object> asset in assets.OfType<Dictionary<string, object>>())
+                var assets = (release["assets"] as object[] ?? new object[0]).OfType<Dictionary<string, object>>().ToList();
+                var names = new HashSet<string>(assets.Select(a => a["name"] as string ?? ""), StringComparer.OrdinalIgnoreCase);
+                // FIX-GTS-286: the package: a zip named like one (PackagePrefixes), the one with a .sha256 beside it first.
+                var package = assets.Where(a => (a["name"] as string ?? "").EndsWith(".zip", StringComparison.OrdinalIgnoreCase) &&
+                                                PackagePrefixes.Any(p => (a["name"] as string ?? "").StartsWith(p, StringComparison.OrdinalIgnoreCase)))
+                                    .OrderBy(a => names.Contains((a["name"] as string) + ".sha256") ? 0 : 1).FirstOrDefault();
+                if (package == null) continue;
+                info.ZipName = package["name"] as string;
+                info.ZipUrl = package["browser_download_url"] as string;
+                // The commit the tag points at, so the same build on another channel is not offered.
+                try
                 {
-                    string name = asset["name"] as string ?? "";
-                    if (name.StartsWith(PackagePrefix) && name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) && info.ZipUrl == null)
-                    {
-                        info.ZipName = name;
-                        info.ZipUrl = asset["browser_download_url"] as string;
-                    }
+                    var tagged = Json("https://api.github.com/repos/" + Repository + "/commits/" + Uri.EscapeDataString(tag)) as Dictionary<string, object>;
+                    object sha;
+                    if (tagged != null && tagged.TryGetValue("sha", out sha)) info.Commit = sha as string;
                 }
-                if (info.ZipUrl == null) continue;
+                catch { }
                 foreach (Dictionary<string, object> asset in assets.OfType<Dictionary<string, object>>())
                     if (string.Equals(asset["name"] as string, info.ZipName + ".sha256", StringComparison.OrdinalIgnoreCase))
                         shaUrl = asset["browser_download_url"] as string;
@@ -236,7 +287,7 @@ namespace RyGT
                     string when = (run["created_at"] as string ?? "").Replace('T', ' ').TrimEnd('Z');
                     return new ReleaseInfo
                     {
-                        Artifact = true, Version = "ci-" + sha.Substring(0, 8), Tag = sha, Name = Product + " nightly " + sha.Substring(0, 8),
+                        Artifact = true, Version = "ci-" + sha.Substring(0, 8), Tag = sha, Commit = sha, Name = Product + " nightly " + sha.Substring(0, 8),
                         Notes = "Built " + (when.Length >= 16 ? when.Substring(0, 16) + " UTC" : when) + " from " + Branch + ".",
                         ZipName = NightlyPrefix + sha.Substring(0, 8) + ".zip",
                         ZipUrl = "https://nightly.link/" + Repository + "/actions/runs/" + id + "/" + name + ".zip"
@@ -244,6 +295,13 @@ namespace RyGT
                 }
             }
             return null;
+        }
+
+        static string WithoutPrefix(string tag, string[] prefixes)
+        {
+            foreach (var prefix in prefixes)
+                if (tag.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return tag.Substring(prefix.Length);
+            return tag;
         }
 
         static string Sha256Of(string path)

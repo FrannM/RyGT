@@ -49,6 +49,31 @@ in `loader/AdvancedPage.cs` reads `libs\libSceVideoOut.prx` (the copy the game l
 - **Changing the format:** bump the `RYGTSW1` tag on both sides together. The walker ignores strings
   with a tag it does not know.
 
+## Releases and the launcher's updater (FIX-GTS-286)
+
+The launcher's updater (`loader/Updater.cs`) finds releases on GitHub by their names, so a release
+has to be published like this:
+
+| What | Convention | Example |
+|---|---|---|
+| Tag | `gt-sport-<YYYY-MM-DD>`, a letter for a same-day hotfix | `gt-sport-2026-11-15`, `gt-sport-2026-11-15b` |
+| Package | `GTSport-Ryty-shadGT-<YYYY-MM-DD>.zip` | `GTSport-Ryty-shadGT-2026-11-15.zip` |
+| Checksum | the package's SHA-256 as an asset beside it: `<package>.sha256` | `GTSport-Ryty-shadGT-2026-11-15.zip.sha256` |
+| Contents | the CI package as built: one top folder holding `BUILD_INFO.txt` (with `commit`) and `SHA256SUMS.txt` | `RyGTS-ci-eb155892/` |
+| Pre-release | GitHub's "Set as a pre-release" box; the Prerelease channel offers it, Stable does not | |
+
+- **The version is the tag without its prefix** (`2026-11-15`). Versions are compared as text, so
+  keep the date format, and add a letter for a hotfix rather than a different shape.
+- **Don't rename the tag, the package or the checksum asset.** Without them the updater says no
+  update is available (that was FIX-GTS-286: tags `gts-` and packages `RyGTS-*.zip` were expected).
+  A new naming scheme means changing `TagPrefixes` and `PackagePrefixes` in `loader/Updater.cs`,
+  in the same change, and keeping the old names in them for older launchers' sake.
+- **The tag must point at the commit the package was built from** (its `BUILD_INFO.txt` commit).
+  The updater reads the tag's commit to skip a release that is the same build as the installed
+  one, for example the newest nightly.
+- **A release installs its own launcher.** Publish one whose `RyGTS.exe` has the updater you want
+  players to keep.
+
 ## Launcher build
 
 `loader\build.cmd [output folder]` builds `RyGTS.exe` with the .NET Framework 4 `csc`, which only
