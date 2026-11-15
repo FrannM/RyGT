@@ -2671,11 +2671,8 @@ namespace RyGT
             if (release == null || busy) return;
             if (MessageBox.Show(this, "Update RyGTS to " + Updater.Display(release.Version) + (release.Prerelease ? " (prerelease)" : "") + "?" +
                                 Environment.NewLine + Environment.NewLine +
-                                "The launcher downloads " + release.ZipName +
-                                (release.Artifact ? " (through nightly.link, as GitHub's own download needs an account)" : "") +
-                                ", checks it, replaces its own program files and restarts. Your game, saves, settings, profiles and shader " +
-                                "caches stay as they are. The old files are kept, so you can roll back from Settings > About.", "Update RyGTS",
-                                MessageBoxButtons.OKCancel) != DialogResult.OK)
+                                "The launcher restarts when it is done. Your game, saves and settings are kept, and you can roll back " +
+                                "from Settings > About.", "Update RyGTS", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK)
                 return;
             busy = true;
             updateButton.Enabled = false;
