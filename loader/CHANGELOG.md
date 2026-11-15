@@ -6,6 +6,17 @@ The version lives in `loader/Version.cs`. To release a change, bump
 `LauncherVersion.Value` there and add a section here with the same number;
 CI fails when the two disagree.
 
+## 0.3.0 - 2026-11-15
+
+* FEAT-GTS-290: One launcher for Gran Turismo Sport and Gran Turismo 7. The home view has a Game list;
+  picking a game fades the launcher's accent (red GT Sport, blue GT7) and its pictures, and the settings
+  become that game's. GT7 brings ryGT7's pages (Display, Graphics, Controls, Account, Online), its Set up
+  (Offline mode patch) and its updates (GitLab). Each game keeps its own folder, exe, settings file
+  (RyGT.ini, RyGT7.ini), launch environment and logs; the Game page lists both games' folders and files.
+  RyGT-Launcher.ini beside RyGTS.exe remembers the game picked last and each game's folder; nothing in a
+  GT Sport folder changes. Shared pages: Game, Shaders, About (with Updates), Advanced. `--setup` and
+  `--snapshot` take `--game gts|gt7`. See loader/UNIFIED-LAUNCHER.md.
+
 ## 0.2.2 - 2026-11-15
 
 * FEAT-GTS-287: Settings > About carries NVIDIA's DLSS attribution, as the NVIDIA RTX SDKs License
