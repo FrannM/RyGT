@@ -1574,6 +1574,7 @@ namespace RyGT
         public ChangelogDialog(ReleaseInfo release)
         {
             Text = release.Name.Length > 0 ? release.Name : "Changelog";
+            try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { } // the launcher's logo
             StartPosition = FormStartPosition.CenterParent;
             ShowInTaskbar = false;
             MinimizeBox = false;
