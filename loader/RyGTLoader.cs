@@ -2639,7 +2639,7 @@ namespace RyGT
                                                : "RyGTS " + latest.Version + (latest.Prerelease ? " (prerelease)" : "") + " is available") +
                               " (you have " + Updater.Display(installed) + ")." +
                               (latest.Changes().Count > 0 ? "" : Environment.NewLine + latest.Summary(240)); // the notes are behind Changelog
-                updateButton.Text = "Update to " + Updater.Display(latest.Version);
+                updateButton.Text = "Update"; // the notice names the version; the button had no room for it
                 updateButton.Visible = true;
                 changelogButton.Visible = latest.Changes().Count > 0;
                 home.PerformLayout();
