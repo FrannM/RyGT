@@ -178,6 +178,23 @@ int rygt_ndebug_probe(void) { return 0; }
     if ($Flavor -eq 'Diagnostics') {
         Invoke-Checked 'python' @('ci/diagnostics/write-capture-layout.py', $out, "$out/frame-capture-layouts.json", "$llvm/bin")
     }
+    # FEAT-GTS-287: ryGT_dlss.dll, RyGTS's DLSS plugin (plugins/dlss, MIT), built against NVIDIA's DLSS SDK
+    # headers and import library, pinned by checksum in ci/runtime-toolchain.json. Only the plugin is
+    # packaged (dlss\ryGT_dlss.dll); players get NVIDIA's runtime with the launcher's download button.
+    $dlss = (Get-Content ci/runtime-toolchain.json -Raw | ConvertFrom-Json).dlss_sdk
+    $sdk = Join-Path (Get-Location) ('build/ci-dlss-sdk' + $suffix)
+    foreach ($file in $dlss.files) {
+        $target = Join-Path $sdk $file.path
+        New-Item -ItemType Directory -Force (Split-Path $target -Parent) | Out-Null
+        Invoke-WebRequest -UseBasicParsing "$($dlss.base_url)/$($file.path)" -OutFile $target
+        if ((Get-FileHash $target -Algorithm SHA256).Hash.ToLowerInvariant() -cne $file.sha256) { throw "SHA-256 mismatch for DLSS SDK $($file.path)" }
+    }
+    $env:DLSS_SDK = $sdk
+    $env:VULKAN_INCLUDE = "$source/externals/vulkan-headers/include"
+    $plugin = Join-Path (Get-Location) ('build/ci-dlss' + $suffix)
+    Invoke-Checked 'cmd.exe' @('/d','/c','plugins\dlss\build.cmd',$plugin)
+    if (!(Test-Path "$plugin/ryGT_dlss.dll")) { throw 'DLSS plugin output missing' }
+    Copy-Item "$plugin/ryGT_dlss.dll" $out
     Copy-Item "$source/CI-SOURCE.txt" $out
     Invoke-Checked 'git' @('-C',$source,'submodule','status','--recursive')
 }
