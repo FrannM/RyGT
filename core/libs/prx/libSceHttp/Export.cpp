@@ -1,156 +1,45 @@
 #include <cstdint>
 #include <cstddef>
-#include <cstring>
-#include <algorithm>
-#include <map>
-#include <mutex>
-#include <string>
+#include <cctype>
+#include <string_view>
 #include "SceTypes.hpp"
 #include "prx/libc/include/General.hpp"
+#include "prx/libSceHttp/src/Bridge.hpp"
 #include "prx/libSceHttp/src/HttpErrors.hpp"
-#include "prx/libRytyNet/src/RytyNetBridge.hpp"
-#include <atomic>
 
-// libSceHttp used to be a pure offline stub: contexts, templates and requests
-// could be created, but any request that would touch the network failed with
-// the library's network error.
-//
-// Since Ryty 1.0.7 the library can route plain HTTP/1.1 requests through the
-// experimental RytyNet bridge (libRytyNet). The bridge is OFF unless the port
-// was made with `ryty --rytynet` or RTY_NET_ENABLE=1 is set; in that case the
-// previous offline behaviour is unchanged. HTTPS is not part of the
-// experimental bridge: https requests report the network error with a
-// [rytynet] log line explaining why.
-
-namespace {
-
-constexpr int HTTP_METHOD_GET = 0;
-constexpr int HTTP_METHOD_POST = 1;
-constexpr int HTTP_METHOD_HEAD = 2;
-constexpr int HTTP_METHOD_PUT = 3;
-constexpr int HTTP_METHOD_DELETE = 4;
-constexpr int HTTP_METHOD_OPTIONS = 5;
-constexpr int HTTP_METHOD_TRACE = 6;
-constexpr int HTTP_METHOD_CONNECT = 7;
-
-std::atomic<int> g_nextHandle{1};
-
-struct RequestState {
-    std::string method = "GET";
-    std::string url;
-    std::string headerBlock;
-    std::string body;
-    bool sent = false;
-    bool tlsRequested = false;
-    bool authEnabled = false;
-    bool autoRedirect = false;
-    std::uint32_t connectTimeoutUs = 0;
-    std::uint32_t recvTimeoutUs = 0;
-    std::uint32_t sendTimeoutUs = 0;
-    RytyNet::HttpResponse response;
-    std::size_t readCursor = 0;
-};
-
-std::mutex stateMutex;
-std::map<int, RequestState> requests;
-
-std::map<int, std::string>* connections() {
-    static std::map<int, std::string> urls;
-    return &urls;
-}
-
-RequestState* findRequest(int requestId) {
-    const auto it = requests.find(requestId);
-    return it == requests.end() ? nullptr : &it->second;
-}
-
-void recordRequest(int requestId, const char* method, const std::string& url) {
-    RequestState state;
-    state.method = method;
-    state.url = url;
-    std::lock_guard lock(stateMutex);
-    requests[requestId] = std::move(state);
-}
-
-const char* methodName(int method) {
-    switch (method) {
-    case HTTP_METHOD_POST: return "POST";
-    case HTTP_METHOD_HEAD: return "HEAD";
-    case HTTP_METHOD_PUT: return "PUT";
-    case HTTP_METHOD_DELETE: return "DELETE";
-    case HTTP_METHOD_OPTIONS: return "OPTIONS";
-    case HTTP_METHOD_TRACE: return "TRACE";
-    case HTTP_METHOD_CONNECT: return "CONNECT";
-    default: return "GET";
-    }
-}
-
-// Resolves a request's URL: an explicit URL when given, otherwise the
-// connection's URL with the request path spliced in.
-std::string resolveUrl(int connId, const char* pathOrUrl, bool isUrl) {
-    if (isUrl) return pathOrUrl;
-    std::string base;
-    {
-        std::lock_guard lock(stateMutex);
-        const auto it = connections()->find(connId);
-        if (it != connections()->end()) base = it->second;
-    }
-    if (base.empty()) return pathOrUrl;
-    bool isHttps = false;
-    std::string host, unused;
-    std::uint16_t port = 0;
-    std::string path;
-    if (RytyNet::ParseHttpUrl(base, isHttps, host, port, path)) {
-        const auto authority = host + ((port == (isHttps ? 443 : 80)) ? std::string() : ":" + std::to_string(port));
-        return std::string(isHttps ? "https://" : "http://") + authority + (pathOrUrl[0] == '/' ? pathOrUrl : std::string("/") + pathOrUrl);
-    }
-    return pathOrUrl;
-}
-
-void sendThroughBridge(int requestId) {
-    std::lock_guard lock(stateMutex);
-    auto* request = findRequest(requestId);
-    if (!request) return;
-    request->sent = true;
-    request->response = RytyNet::HttpResponse{};
-    bool isHttps = false;
-    std::string host, path;
-    std::uint16_t port = 0;
-    if (!RytyNet::ParseHttpUrl(request->url, isHttps, host, port, path)) {
-        request->response.error = "invalid URL";
-        return;
-    }
-    if (isHttps) {
-        request->tlsRequested = true;
-        request->response.error = "the experimental RytyNet bridge does not support TLS";
-        return;
-    }
-    RytyNet::HttpRequest outgoing;
-    outgoing.method = request->method;
-    outgoing.host = host;
-    outgoing.port = port;
-    outgoing.path = path;
-    outgoing.headerBlock = request->headerBlock;
-    outgoing.body = request->body;
-    outgoing.autoRedirect = request->autoRedirect;
-    std::uint32_t timeoutMs = 0;
-    if (request->recvTimeoutUs > 0) timeoutMs = request->recvTimeoutUs / 1000;
-    else if (request->connectTimeoutUs > 0) timeoutMs = request->connectTimeoutUs / 1000;
-    request->response = RytyNet::PerformHttpRequest(outgoing, timeoutMs);
-    request->readCursor = 0;
-}
-
-}
+// Requests go to RyGTServer when online is enabled in RyGT.ini (see OnlineConfig.hpp and
+// src/Bridge.cpp). Otherwise contexts, templates and requests can still be created, but any
+// request that would touch the network fails with the library's network error.
+using HttpBridge::Kind;
 
 extern "C" {
 
-int APS5_VABI sceHttpParseResponseHeader() {
-    return ERROR_NETWORK;
+int APS5_VABI sceHttpParseResponseHeader(const char* header, size_t header_len, const char* field_str,
+                                         const char** field_value, size_t* value_len) {
+    if (!header || !field_str || !field_value || !value_len) return ERROR_INVALID_VALUE;
+    const std::string_view headers(header, header_len);
+    const std::string_view field(field_str);
+    for (size_t lineStart = 0; lineStart < headers.size();) {
+        size_t lineEnd = headers.find("\r\n", lineStart);
+        if (lineEnd == headers.npos) lineEnd = headers.size();
+        const auto line = headers.substr(lineStart, lineEnd - lineStart);
+        lineStart = lineEnd + 2;
+        if (line.find(':') != field.size()) continue;
+        bool match = true;
+        for (size_t i = 0; i < field.size() && match; ++i)
+            match = std::tolower(static_cast<unsigned char>(line[i])) == std::tolower(static_cast<unsigned char>(field[i]));
+        if (!match) continue;
+        size_t valueStart = field.size() + 1;
+        while (valueStart < line.size() && (line[valueStart] == ' ' || line[valueStart] == '\t')) ++valueStart;
+        *field_value = line.data() + valueStart;
+        *value_len = line.size() - valueStart;
+        return static_cast<int>(lineEnd);
+    }
+    return ERROR_PARSE_HTTP_NOT_FOUND;
 }
 
 int APS5_VABI sceHttpAbortRequest(int request_id) {
-    (void)request_id;
-    return 0;
+    return HttpBridge::Abort(request_id);
 }
 
 int APS5_VABI sceHttpGetMemoryPoolStats(int http_ctx_id, void* stats) {
@@ -160,35 +49,18 @@ int APS5_VABI sceHttpGetMemoryPoolStats(int http_ctx_id, void* stats) {
 }
 
 int APS5_VABI sceHttpAddRequestHeader(int id, const char* name, const char* value, uint32_t mode) {
-    if (!name || !value) return ERROR_INVALID_VALUE;
-    std::lock_guard lock(stateMutex);
-    if (auto* request = findRequest(id)) {
-        request->headerBlock += std::string(name) + ": " + value + "\r\n";
-        return 0;
-    }
-    (void)mode;
-    return 0;
+    return HttpBridge::AddHeader(id, name, value, mode);
 }
 
 int APS5_VABI sceHttpCreateConnection(int tmpl_id, const char* server_name, const char* scheme, uint16_t port, int enable_keep_alive) {
-    (void)tmpl_id;
     (void)enable_keep_alive;
-    if (!server_name || !scheme) return ERROR_INVALID_VALUE;
-    const int handle = g_nextHandle.fetch_add(1, std::memory_order_relaxed);
-    const std::string url = std::string(scheme) + "://" + server_name + ":" + std::to_string(port);
-    std::lock_guard lock(stateMutex);
-    (*connections())[handle] = url;
-    return handle;
+    if (!server_name) return ERROR_INVALID_VALUE;
+    return HttpBridge::CreateConnection(tmpl_id, scheme ? scheme : "http", server_name, port);
 }
 
 int APS5_VABI sceHttpCreateConnectionWithURL(int tmpl_id, const char* url, int enable_keep_alive) {
-    (void)tmpl_id;
     (void)enable_keep_alive;
-    if (!url) return ERROR_INVALID_URL;
-    const int handle = g_nextHandle.fetch_add(1, std::memory_order_relaxed);
-    std::lock_guard lock(stateMutex);
-    (*connections())[handle] = url;
-    return handle;
+    return HttpBridge::CreateConnectionWithUrl(tmpl_id, url);
 }
 
 int APS5_VABI sceHttpCreateEpoll(int http_ctx_id, HttpEpollHandle* eh) {
@@ -199,103 +71,69 @@ int APS5_VABI sceHttpCreateEpoll(int http_ctx_id, HttpEpollHandle* eh) {
 }
 
 int APS5_VABI sceHttpCreateRequest(int conn_id, int method, const char* path, uint64_t content_length) {
-    (void)content_length;
-    if (!path) return ERROR_INVALID_VALUE;
-    const int handle = g_nextHandle.fetch_add(1, std::memory_order_relaxed);
-    recordRequest(handle, methodName(method), resolveUrl(conn_id, path, false));
-    return handle;
+    const char* name = HttpBridge::MethodName(method);
+    if (!name) return ERROR_INVALID_VALUE;
+    return HttpBridge::CreateRequest(conn_id, name, path, content_length);
 }
 
 int APS5_VABI sceHttpCreateRequest2(int conn_id, const char* method, const char* path,
                                    uint64_t content_length) {
-    (void)conn_id;
-    (void)method;
-    (void)path;
-    (void)content_length;
-    return g_nextHandle.fetch_add(1, std::memory_order_relaxed);
+    if (!method) return ERROR_INVALID_VALUE;
+    return HttpBridge::CreateRequest(conn_id, method, path, content_length);
 }
 
 int APS5_VABI sceHttpCreateRequestWithURL2(int conn_id, const char* method, const char* url, uint64_t content_length) {
-    (void)conn_id;
-    (void)content_length;
-    if (!method || !url) return ERROR_INVALID_URL;
-    const int handle = g_nextHandle.fetch_add(1, std::memory_order_relaxed);
-    recordRequest(handle, method, url);
-    return handle;
+    if (!method) return ERROR_INVALID_VALUE;
+    return HttpBridge::CreateRequest(conn_id, method, url, content_length);
 }
 
 int APS5_VABI sceHttpCreateTemplate(int http_ctx_id, const char* user_agent, int http_ver, int is_auto_proxy_conf) {
-    (void)http_ctx_id;
-    (void)user_agent;
     (void)http_ver;
     (void)is_auto_proxy_conf;
-    return g_nextHandle.fetch_add(1, std::memory_order_relaxed);
+    const int id = HttpBridge::Create(Kind::Template, http_ctx_id);
+    HttpBridge::SetUserAgent(id, user_agent);
+    return id;
 }
 
 int APS5_VABI sceHttpDeleteConnection(int conn_id) {
-    std::lock_guard lock(stateMutex);
-    connections()->erase(conn_id);
+    HttpBridge::Delete(conn_id);
     return 0;
 }
 
 int APS5_VABI sceHttpDeleteRequest(int req_id) {
-    std::lock_guard lock(stateMutex);
-    requests.erase(req_id);
+    HttpBridge::Delete(req_id);
     return 0;
 }
 
 int APS5_VABI sceHttpDeleteTemplate(int tmpl_id) {
-    (void)tmpl_id;
+    HttpBridge::Delete(tmpl_id);
     return 0;
 }
 
 int APS5_VABI sceHttpDestroyEpoll(int http_ctx_id, HttpEpollHandle eh) {
     (void)http_ctx_id;
+    HttpBridge::ForgetEpoll(eh);
     delete eh;
     return 0;
 }
 
 int APS5_VABI sceHttpGetAllResponseHeaders(int request_id, char** header, size_t* header_size) {
-    if (!header || !header_size) return ERROR_INVALID_VALUE;
-    std::lock_guard lock(stateMutex);
-    const auto* request = findRequest(request_id);
-    if (!request || !request->sent) return ERROR_NETWORK;
-    if (!request->response.ok) return ERROR_NETWORK;
-    // The caller frees the block with sceHttpFreeMemory; a single allocation
-    // keeps the two output pointers self-contained.
-    const std::string& headers = request->response.headers;
-    *header_size = headers.size() + 1;
-    *header = new char[headers.size() + 1];
-    std::memcpy(*header, headers.c_str(), headers.size() + 1);
-    return 0;
+    return HttpBridge::GetAllHeaders(request_id, header, header_size);
 }
 
 int APS5_VABI sceHttpGetResponseContentLength(int request_id, int* result, uint64_t* content_length) {
-    if (!result || !content_length) return ERROR_INVALID_VALUE;
-    std::lock_guard lock(stateMutex);
-    const auto* request = findRequest(request_id);
-    if (!request || !request->sent) return ERROR_NETWORK;
-    if (!request->response.ok) return ERROR_NETWORK;
-    *result = 1;
-    *content_length = request->response.body.size();
-    return 0;
+    return HttpBridge::GetContentLength(request_id, result, content_length);
 }
 
 int APS5_VABI sceHttpGetStatusCode(int request_id, int* status_code) {
-    if (!status_code) return ERROR_INVALID_VALUE;
-    std::lock_guard lock(stateMutex);
-    const auto* request = findRequest(request_id);
-    if (!request || !request->sent) return ERROR_NETWORK;
-    if (!request->response.ok) return ERROR_NETWORK;
-    *status_code = request->response.status;
-    return 0;
+    return HttpBridge::GetStatusCode(request_id, status_code);
 }
 
 int APS5_VABI sceHttpInit_nid_postfix(int memid, int ssl_ctx_id, uint64_t pool_size) {
     (void)memid;
     (void)ssl_ctx_id;
     (void)pool_size;
-    return g_nextHandle.fetch_add(1, std::memory_order_relaxed);
+    return HttpBridge::Create(Kind::Context, 0);
 }
 
 int APS5_VABI sceHttpsDisableOption(int id, uint32_t ssl_flags) {
@@ -305,46 +143,33 @@ int APS5_VABI sceHttpsDisableOption(int id, uint32_t ssl_flags) {
 }
 
 int APS5_VABI sceHttpSendRequest(int request_id, const void* post_data, size_t size) {
-    {
-        std::lock_guard lock(stateMutex);
-        auto* request = findRequest(request_id);
-        if (!request) return ERROR_INVALID_VALUE;
-        if (post_data && size > 0) request->body.assign(static_cast<const char*>(post_data), size);
-    }
-    // Offline behaviour when the bridge is disabled (unchanged from 1.0.6).
-    if (!RytyNet::Bridge().enabled) return ERROR_NETWORK;
-    sendThroughBridge(request_id);
-    std::lock_guard lock(stateMutex);
-    const auto* request = findRequest(request_id);
-    if (!request || !request->response.ok) return ERROR_NETWORK;
-    return 0;
+    return HttpBridge::Send(request_id, post_data, size);
 }
 
 int APS5_VABI sceHttpSetAuthEnabled(int id, int enable) {
-    std::lock_guard lock(stateMutex);
-    if (auto* req = findRequest(id)) req->authEnabled = (enable != 0);
+    (void)id;
+    (void)enable;
     return 0;
 }
 
 int APS5_VABI sceHttpSetAutoRedirect(int id, int enable) {
-    std::lock_guard lock(stateMutex);
-    if (auto* req = findRequest(id)) req->autoRedirect = (enable != 0);
+    (void)id;
+    (void)enable;
     return 0;
 }
 
 int APS5_VABI sceHttpSetConnectTimeOut(int id, uint32_t usec) {
-    std::lock_guard lock(stateMutex);
-    if (auto* req = findRequest(id)) req->connectTimeoutUs = usec;
+    (void)id;
+    (void)usec;
     return 0;
 }
 
 int APS5_VABI sceHttpSetEpoll(int id, HttpEpollHandle eh, void* user_arg) {
-    (void)id;
-    (void)eh;
-    (void)user_arg;
-    return 0;
+    return HttpBridge::SetEpoll(id, eh, user_arg);
 }
 
+// Requests complete within sceHttpSendRequest, so non-blocking mode needs no separate handling:
+// a non-blocking caller sees the send succeed and its epoll report the request ready.
 int APS5_VABI sceHttpSetNonblock(int id, int enable) {
     (void)id;
     (void)enable;
@@ -352,17 +177,13 @@ int APS5_VABI sceHttpSetNonblock(int id, int enable) {
 }
 
 int APS5_VABI sceHttpSetRecvTimeOut(int id, uint32_t usec) {
-    std::lock_guard lock(stateMutex);
-    if (auto* req = findRequest(id)) req->recvTimeoutUs = usec;
+    (void)id;
+    (void)usec;
     return 0;
 }
 
 int APS5_VABI sceHttpSetRequestContentLength(int request_id, uint64_t content_length) {
-    // The bridge sends Content-Length from the actual body; the guest's hint is
-    // only recorded so a mismatch can be reported through the log later.
-    (void)request_id;
-    (void)content_length;
-    return 0;
+    return HttpBridge::SetContentLength(request_id, content_length);
 }
 
 int APS5_VABI sceHttpSetResolveRetry(int id, int32_t retry) {
@@ -378,8 +199,8 @@ int APS5_VABI sceHttpSetResolveTimeOut(int id, uint32_t usec) {
 }
 
 int APS5_VABI sceHttpSetSendTimeOut(int id, uint32_t usec) {
-    std::lock_guard lock(stateMutex);
-    if (auto* req = findRequest(id)) req->sendTimeoutUs = usec;
+    (void)id;
+    (void)usec;
     return 0;
 }
 
@@ -389,6 +210,7 @@ int APS5_VABI sceHttpsSetMinSslVersion(int id, uint32_t ssl_version) {
     return 0;
 }
 
+// RyGTServer is reached over plain HTTP, so there is no certificate for the callback to check.
 int APS5_VABI sceHttpsSetSslCallback(int id, HttpsCallback cbfunc, void* user_arg) {
     (void)id;
     (void)cbfunc;
@@ -397,50 +219,97 @@ int APS5_VABI sceHttpsSetSslCallback(int id, HttpsCallback cbfunc, void* user_ar
 }
 
 int APS5_VABI sceHttpTerm_nid_postfix(int http_ctx_id) {
-    (void)http_ctx_id;
+    HttpBridge::Delete(http_ctx_id);
     return 0;
 }
 
 int APS5_VABI sceHttpUnsetEpoll(int id) {
-    (void)id;
-    return 0;
+    return HttpBridge::UnsetEpoll(id);
 }
 
 int APS5_VABI sceHttpWaitRequest(HttpEpollHandle eh, HttpNBEvent* nbev, int maxevents, int timeout) {
-    (void)eh;
-    (void)nbev;
-    (void)maxevents;
-    (void)timeout;
-    // The non-blocking epoll API is not part of the experimental bridge.
-    return ERROR_NETWORK;
+    return HttpBridge::Wait(eh, nbev, maxevents, timeout);
 }
 
 int APS5_VABI sceHttpCreateRequestWithURL(int conn_id, int method, const char* url, uint64_t content_length) {
-    (void)conn_id;
-    (void)content_length;
-    if (!url) return ERROR_INVALID_URL;
-    const int handle = g_nextHandle.fetch_add(1, std::memory_order_relaxed);
-    recordRequest(handle, methodName(method), url);
-    return handle;
+    const char* name = HttpBridge::MethodName(method);
+    if (!name) return ERROR_INVALID_VALUE;
+    return HttpBridge::CreateRequest(conn_id, name, url, content_length);
 }
 
 int APS5_VABI sceHttpReadData(int request_id, void* data, size_t size) {
-    if (!data) return ERROR_INVALID_VALUE;
-    std::lock_guard lock(stateMutex);
-    auto* request = findRequest(request_id);
-    if (!request || !request->sent) return ERROR_NETWORK;
-    if (!request->response.ok) return ERROR_NETWORK;
-    if (request->readCursor >= request->response.body.size()) return 0;
-    const std::size_t remaining = request->response.body.size() - request->readCursor;
-    const std::size_t copied = std::min(remaining, size);
-    std::memcpy(data, request->response.body.data() + request->readCursor, copied);
-    request->readCursor += copied;
-    return static_cast<int>(copied);
+    return HttpBridge::Read(request_id, data, size);
 }
 
 int APS5_VABI sceHttpSetChunkedTransferEnabled(int id, int enable) {
     (void)id;
     (void)enable;
+    return 0;
+}
+
+int APS5_VABI sceHttpGetAutoRedirect(int id, int* is_enable) {
+    (void)id;
+    if (!is_enable) return ERROR_INVALID_VALUE;
+    *is_enable = 1;
+    return 0;
+}
+
+int APS5_VABI sceHttpGetLastErrno(int request_id, int* err_num) {
+    (void)request_id;
+    if (!err_num) return ERROR_INVALID_VALUE;
+    *err_num = 0;
+    return 0;
+}
+
+int APS5_VABI sceHttpAddCookie(int http_ctx_id, const char* url, const char* cookie, size_t cookie_length) {
+    (void)http_ctx_id;
+    return HttpBridge::AddCookie(url, cookie, cookie_length);
+}
+
+int APS5_VABI sceHttpCookieExport(int http_ctx_id, void* buffer, size_t buffer_size, size_t* export_size) {
+    (void)http_ctx_id;
+    return HttpBridge::ExportCookies(buffer, buffer_size, export_size);
+}
+
+int APS5_VABI sceHttpCookieImport(int http_ctx_id, const void* buffer, size_t buffer_size) {
+    (void)http_ctx_id;
+    return HttpBridge::ImportCookies(buffer, buffer_size);
+}
+
+// Cookies are stored by the bridge itself, so there is no system cookie store to report from.
+int APS5_VABI sceHttpSetCookieRecvCallback(int id, void* cbfunc, void* user_arg) {
+    (void)id;
+    (void)cbfunc;
+    (void)user_arg;
+    return 0;
+}
+
+// The game's HTTPS goes to RyGTServer as plain HTTP, so there is no TLS: certificates and options
+// are accepted and no TLS error is ever reported.
+int APS5_VABI sceHttpsLoadCert(int http_ctx_id, int ca_cert_num, const void** ca_list, const void* cert, const void* priv_key) {
+    (void)http_ctx_id;
+    (void)ca_cert_num;
+    (void)ca_list;
+    (void)cert;
+    (void)priv_key;
+    return 0;
+}
+
+int APS5_VABI sceHttpsUnloadCert(int http_ctx_id) {
+    (void)http_ctx_id;
+    return 0;
+}
+
+int APS5_VABI sceHttpsEnableOption(int id, uint32_t ssl_flags) {
+    (void)id;
+    (void)ssl_flags;
+    return 0;
+}
+
+int APS5_VABI sceHttpsGetSslError(int id, int* err_num, uint32_t* detail) {
+    (void)id;
+    if (err_num) *err_num = 0;
+    if (detail) *detail = 0;
     return 0;
 }
 
@@ -471,7 +340,16 @@ int APS5_VABI sceHttp2GetCookieStats() { return ERROR_NETWORK; }
 int APS5_VABI sceHttp2GetMemoryPoolStats() { return ERROR_NETWORK; }
 int APS5_VABI sceHttp2GetResponseContentLength() { return ERROR_NETWORK; }
 int APS5_VABI sceHttp2GetStatusCode() { return ERROR_NETWORK; }
-int APS5_VABI sceHttp2Init() { return ERROR_NETWORK; }
+// GT7 initialises HTTP/2 before PSN's web API and gives up on the web API (PE-0553404 in Lobby)
+// when this fails. The web API itself is shadGT's (in libSceNpAuth.prx), which only needs an ID.
+int APS5_VABI sceHttp2Init(int libnet_mem_id, int libssl_ctx_id, size_t pool_size, int max_requests) {
+    (void)libnet_mem_id;
+    (void)libssl_ctx_id;
+    (void)pool_size;
+    (void)max_requests;
+    static int next = 0;
+    return ++next;
+}
 int APS5_VABI sceHttp2ReadData() { return ERROR_NETWORK; }
 int APS5_VABI sceHttp2ReadDataAsync() { return ERROR_NETWORK; }
 int APS5_VABI sceHttp2RedirectCacheFlush() { return ERROR_NETWORK; }
@@ -503,7 +381,7 @@ int APS5_VABI sceHttp2SetSslCallback() { return ERROR_NETWORK; }
 int APS5_VABI sceHttp2SetTimeOut() { return ERROR_NETWORK; }
 int APS5_VABI sceHttp2SslDisableOption() { return ERROR_NETWORK; }
 int APS5_VABI sceHttp2SslEnableOption() { return ERROR_NETWORK; }
-int APS5_VABI sceHttp2Term() { return ERROR_NETWORK; }
+int APS5_VABI sceHttp2Term(int) { return 0; }
 int APS5_VABI sceHttp2WaitAsync() { return ERROR_NETWORK; }
 int APS5_VABI sceHttp2WebSocketClose() { return ERROR_NETWORK; }
 int APS5_VABI sceHttp2WebSocketCloseAsync() { return ERROR_NETWORK; }
@@ -516,7 +394,6 @@ int APS5_VABI sceHttp2WebSocketSetPingInterval() { return ERROR_NETWORK; }
 int APS5_VABI sceHttp2WebSocketSetPingTimeout() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpAbortRequestForce() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpAbortWaitRequest() { return ERROR_NETWORK; }
-int APS5_VABI sceHttpAddCookie() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpAddQuery() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpAddRequestHeaderRaw() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpAuthCacheExport() { return ERROR_NETWORK; }
@@ -545,9 +422,7 @@ int APS5_VABI sceHttpCacheSystemSendStatistics() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpCacheSystemShutdown() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpCacheSystemTerm() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpCacheTerm() { return ERROR_NETWORK; }
-int APS5_VABI sceHttpCookieExport() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpCookieFlush() { return ERROR_NETWORK; }
-int APS5_VABI sceHttpCookieImport() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpDbgEnableProfile() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpDbgGetConnectionStat() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpDbgGetRequestStat() { return ERROR_NETWORK; }
@@ -558,14 +433,12 @@ int APS5_VABI sceHttpDbgShowRequestStat() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpDbgShowStat() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpGetAcceptEncodingGZIPEnabled() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpGetAuthEnabled() { return ERROR_NETWORK; }
-int APS5_VABI sceHttpGetAutoRedirect() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpGetConnectionStat() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpGetCookie() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpGetCookieEnabled() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpGetCookieStats() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpGetEpoll() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpGetEpollId() { return ERROR_NETWORK; }
-int APS5_VABI sceHttpGetLastErrno() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpGetNonblock() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpGetRegisteredCtxIds() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpInit() { return ERROR_NETWORK; }
@@ -574,7 +447,6 @@ int APS5_VABI sceHttpRedirectCacheFlush() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpRemoveRequestHeader() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpRequestGetAllHeaders() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpsDisableOptionPrivate() { return ERROR_NETWORK; }
-int APS5_VABI sceHttpsEnableOption() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpsEnableOptionPrivate() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpSetAcceptEncodingGZIPEnabled() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpSetAuthInfoCallback() { return ERROR_NETWORK; }
@@ -582,7 +454,6 @@ int APS5_VABI sceHttpSetCookieEnabled() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpSetCookieMaxNum() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpSetCookieMaxNumPerDomain() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpSetCookieMaxSize() { return ERROR_NETWORK; }
-int APS5_VABI sceHttpSetCookieRecvCallback() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpSetCookieSendCallback() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpSetCookieTotalMaxSize() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpSetDefaultAcceptEncodingGZIPEnabled() { return ERROR_NETWORK; }
@@ -600,16 +471,12 @@ int APS5_VABI sceHttpSetResponseHeaderMaxSize() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpSetSocketCreationCallback() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpsFreeCaList() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpsGetCaList() { return ERROR_NETWORK; }
-int APS5_VABI sceHttpsGetSslError() { return ERROR_NETWORK; }
-int APS5_VABI sceHttpsLoadCert() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpsSetSslVersion() { return ERROR_NETWORK; }
-int APS5_VABI sceHttpsUnloadCert() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpTerm() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpTryGetNonblock() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpTrySetNonblock() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpUriCopy() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpUriMerge() { return ERROR_NETWORK; }
 int APS5_VABI sceHttpUriSweepPath() { return ERROR_NETWORK; }
-int APS5_VABI sceHttpUriUnescape() { return ERROR_NETWORK; }
 }
 

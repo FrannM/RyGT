@@ -63,7 +63,7 @@ struct WorkingDirectory {
 };
 WorkingDirectory& Directories() { static WorkingDirectory state; return state; }
 
-// FEAT-GTS-259: /app0 searched through RyGTS\app0, the update and the base game (AppOverlay.hpp).
+// FEAT-GTS-259: /app0 searched through the runtime's app0 folder, the update and the base game (AppOverlay.hpp).
 Libc::AppOverlay& App0() {
     static Libc::AppOverlay overlay = [] {
         const auto& root = Directories().root;

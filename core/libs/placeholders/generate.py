@@ -2,7 +2,7 @@
 
   python generate.py <list.nids> <output.c> <output.def>
 
-Each line of the list is "<library> <NID>": a function GT Sport imports that RyGTS does not implement.
+Each line of the list is "<library> <NID>": a function GT Sport or GT7 imports that RyGTS does not implement.
 The library exports one function per NID that reports "[stub] <library> <NID>" on its first call and
 returns 0. A library with an empty list exports only ryty_stub_none: the game loads it at start but
 calls nothing in it. See README.md.

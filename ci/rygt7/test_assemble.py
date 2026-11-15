@@ -1,0 +1,117 @@
+import importlib.util
+import json
+import tempfile
+import unittest
+from unittest.mock import patch
+from pathlib import Path
+from types import SimpleNamespace
+
+HERE = Path(__file__).resolve().parent
+spec = importlib.util.spec_from_file_location('assemble', HERE / 'assemble.py')
+module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+
+class AssemblyTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        for x in ('source/build-support', 'built', 'renderer', 'stubs', 'ucrt/bin', 'out', 'fidelityfx', 'dlss-sdk'):
+            (self.root / x).mkdir(parents=True)
+        self.names = list(module.RENDERER_LIBS) + list(module.STUB_LIBS) + list(module.GCC_DLLS) + list(module.REQUIRED_RUNTIME) + ['old.prx']
+        (self.root/'source/build-support/runtime-files.txt').write_text('\n'.join(self.names))
+        # FEAT-GTS-253: no runtime archive; AMD's FidelityFX runtime is checked against its pin.
+        for n in ('amd_fidelityfx_vk.dll','amd_fidelityfx_vk-LICENSE.txt'): (self.root/'fidelityfx'/n).write_bytes(n.encode())
+        pins = dict(module.FIDELITYFX, dll_sha256=module.sha(self.root/'fidelityfx/amd_fidelityfx_vk.dll'),
+                    license_sha256=module.sha(self.root/'fidelityfx/amd_fidelityfx_vk-LICENSE.txt'))
+        pinned = patch.object(module, 'FIDELITYFX', pins); pinned.start(); self.addCleanup(pinned.stop)
+        for n in module.RENDERER_LIBS: (self.root/'renderer'/n).write_bytes(b'renderer')
+        for n in module.STUB_LIBS: (self.root/'stubs'/n).write_bytes(b'stub')
+        for n in module.GCC_DLLS: (self.root/'ucrt/bin'/n).write_bytes(b'ucrt')
+        for n in module.REQUIRED_RUNTIME: (self.root/'built'/n).write_bytes(b'fresh runtime')
+        (self.root/'built/old.prx').write_bytes(b'fresh')
+        for n in ('launcher.exe','converter.exe','probe.exe','ryGT_dlss.dll'): (self.root/n).write_bytes(n.encode())
+        # FEAT-GTS-269: the DLSS plugin, and NVIDIA's licence checked against its pin.
+        (self.root/'dlss-sdk/LICENSE.txt').write_bytes(b'NVIDIA RTX SDKs LICENSE')
+        sdk = dict(module.DLSS_SDK, files=[{'path': 'LICENSE.txt', 'sha256': module.sha(self.root/'dlss-sdk/LICENSE.txt')}])
+        sdk_pin = patch.object(module, 'DLSS_SDK', sdk); sdk_pin.start(); self.addCleanup(sdk_pin.stop)
+        self.args = SimpleNamespace(source=self.root/'source',fidelityfx=self.root/'fidelityfx',runtime=self.root/'assembled',
+          built_libs=self.root/'built',renderer_build=self.root/'renderer',stubs=self.root/'stubs',ucrt=self.root/'ucrt',
+          info=self.root/'BUILD_INFO.json',source_sha='a'*40,renderer_sha='b'*40,renderer_configured_url='configured',
+          renderer_fetch_url='mirror', launcher=self.root/'launcher.exe',converter=self.root/'converter.exe',
+          wheel_probe=self.root/'probe.exe',renderer_source=self.root/'renderer',out=self.root/'out',name='RyGT7-ci-aaaaaaaa',
+          dlss_plugin=self.root/'ryGT_dlss.dll',dlss_sdk=self.root/'dlss-sdk')
+
+    def test_every_file_from_a_build_or_pin(self):
+        module.assemble(self.args)
+        info=json.loads(self.args.info.read_text())
+        self.assertEqual(info['runtime_files']['libs/old.prx']['origin'],'rygt7-source-build')
+        self.assertEqual(info['runtime_files']['libs/libSceVideoOut.prx']['origin'],'shadgt7-source-build')
+        self.assertEqual(info['runtime_files']['libs/libSceMbus.prx']['origin'],'rygt7-gt7-stub-build')
+        self.assertEqual(info['runtime_files']['libs/libstdc++-6.dll']['origin'],'ucrt64-toolchain')
+        self.assertEqual(info['runtime_files']['amd_fidelityfx_vk.dll']['origin'],'amd-fidelityfx-sdk')
+        self.assertEqual(info['runtime_files']['dlss/ryGT_dlss.dll']['origin'],'rygt7-source-build')
+        self.assertEqual((self.args.runtime/'dlss/ryGT_dlss.dll').read_bytes(),b'ryGT_dlss.dll')
+        self.assertEqual(sorted(p.name for p in (self.args.runtime/'dlss').iterdir()),['ryGT_dlss.dll'])
+        self.assertNotIn('base_url', info)
+        self.assertEqual({record['origin'] for record in info['runtime_files'].values()},
+                         {'rygt7-source-build','shadgt7-source-build','rygt7-gt7-stub-build','ucrt64-toolchain','amd-fidelityfx-sdk'})
+        self.assertEqual((self.args.runtime/'libs/old.prx').read_bytes(),b'fresh')
+
+    def test_hash_mismatch_and_missing_renderer_fail(self):
+        (self.root/'fidelityfx/amd_fidelityfx_vk.dll').write_bytes(b'tampered')
+        with self.assertRaisesRegex(ValueError,'does not match the pinned'): module.assemble(self.args)
+        (self.root/'fidelityfx/amd_fidelityfx_vk.dll').write_bytes(b'amd_fidelityfx_vk.dll')
+        import shutil; shutil.rmtree(self.args.runtime)
+        (self.root/'renderer'/module.RENDERER_LIBS[0]).unlink()
+        with self.assertRaisesRegex(ValueError,'expected one'): module.assemble(self.args)
+
+    def test_unbuilt_allowlisted_file_fails(self):
+        # FEAT-GTS-253: nothing falls back to an archive any more.
+        (self.root/'built/old.prx').unlink()
+        with self.assertRaisesRegex(ValueError,'was not built: old.prx'):
+            module.assemble(self.args)
+
+    def test_invalid_allowlist_rejected(self):
+        (self.root/'source/build-support/runtime-files.txt').write_text('../escape.prx\n')
+        with self.assertRaisesRegex(ValueError,'allowlist'): module.assemble(self.args)
+
+
+class ImportAuditTests(unittest.TestCase):
+    def test_local_named_ordinal_and_missing_prx(self):
+        import import_audit
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);(root/'libs').mkdir(); provider=root/'libs/provider.prx'; consumer=root/'libs/consumer.prx'
+            exe=root/'launcher.exe'; converter=root/'converter.exe'
+            for path in (provider,consumer,exe,converter):path.write_bytes(path.name.encode())
+            def parse(path):
+                if path==provider:return {'entry'},{42},[]
+                if path==consumer:return set(),set(),[('provider.prx','entry'),('provider.prx',42),('kernel32.dll','x')]
+                return set(),set(),[]
+            with patch.object(import_audit,'pe',side_effect=parse):
+                result=import_audit.audit(root,converter,exe)
+                self.assertEqual(result['checked_local_bindings'],2)
+                self.assertEqual(result['external_dlls'],['kernel32.dll'])
+                def missing(path):
+                    if path==consumer:return set(),set(),[('missing.prx','entry')]
+                    return parse(path)
+                with patch.object(import_audit,'pe',side_effect=missing):
+                    with self.assertRaisesRegex(ValueError,'missing.prx'):import_audit.audit(root,converter,exe)
+
+class RendererProvenanceTests(unittest.TestCase):
+    def test_exact_patch_only(self):
+        import renderer_provenance as provenance
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp); patch_file=root/provenance.PATCH_PATH; target=root/'externals/vma'/provenance.TARGET
+            patch_file.parent.mkdir(parents=True);target.parent.mkdir(parents=True)
+            patch_file.write_bytes(b'--- a/include/vk_mem_alloc.h\n+++ b/include/vk_mem_alloc.h\n@@ -1 +1 @@\n-old\n+new\n')
+            target.write_bytes(b'new\n')
+            def fake_git(repo,*args):
+                if args[0]=='show':return b'old\n'
+                return b' m externals/vma\n' if Path(repo)==root else b' M include/vk_mem_alloc.h\n'
+            with patch.object(provenance,'PATCH_SHA',module.sha(patch_file)),patch.object(provenance,'git',side_effect=fake_git):
+                self.assertTrue(provenance.verify(root)['verified'])
+                target.write_bytes(b'new\nextra\n')
+                with self.assertRaisesRegex(ValueError,'VMA'):provenance.verify(root)
+                patch_file.write_bytes(b'tampered')
+                with self.assertRaisesRegex(ValueError,'unexpected VMA patch'):provenance.verify(root)
+
+if __name__ == '__main__': unittest.main()

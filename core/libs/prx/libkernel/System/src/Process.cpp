@@ -17,6 +17,7 @@
 #include <atomic>
 #include <cerrno>
 #include <cstddef>
+#include <cstdio>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -337,8 +338,60 @@ int APS5_VABI sceKernelIsTrinityMode(void) {
     return 0;
 }
 
-int APS5_VABI sceKernelIsNeoMode(void) {
+// Which game decides the PS4 Pro (Neo) answer follows the renderer (shadGT ryty_core_shims.cpp,
+// sceKernelIsNeoMode): under GT7.exe it is this library's (RYGT_NEO), for GT Sport the renderer's
+// own Pro mode setting. Asking the renderer under GT7 would come back here from its export.
+bool RunningGt7() {
+    static const bool gt7 = [] {
 #ifdef _WIN32
+    wchar_t path[MAX_PATH]{};
+    const DWORD length = GetModuleFileNameW(nullptr, path, MAX_PATH);
+    if (length == 0 || length >= MAX_PATH) return false;
+    const wchar_t* name = path;
+    for (const wchar_t* c = path; *c; ++c) if (*c == L'\\' || *c == L'/') name = c + 1;
+    return _wcsicmp(name, L"GT7.exe") == 0;
+#else
+    return false;
+#endif
+    }();
+    return gt7;
+}
+
+// RYGT_NEO=1 runs GT7 in its PS4 Pro (Neo) mode: GT7 then draws 3200x1800 (3840x2160 with its
+// game argument 2160p=1) when the video port reports a TV above 1080p. Off by default (base PS4).
+// The renderer (libSceVideoOut.prx) asks this export too, so one switch sets both. The answer is
+// read once: titles cache it, and it must never change while they run. A renderer that cannot draw
+// the Pro mode (no RytyGpuNeoSupported export: an older package) keeps the base PS4 answer, since
+// the Pro mode on it ends in a black screen and a lost GPU.
+static int Gt7NeoMode() {
+    static const int neo = [] {
+        const char* value = std::getenv("RYGT_NEO");
+        if (value == nullptr || value[0] != '1' || value[1] != '\0') return 0;
+#ifdef _WIN32
+        // The renderer loads before the game starts; if it is not there yet, the switch decides.
+        if (HMODULE renderer = GetModuleHandleA("libSceVideoOut.prx")) {
+            using SupportedFn = int (*)();
+            const auto supported = reinterpret_cast<SupportedFn>(
+                reinterpret_cast<void*>(GetProcAddress(renderer, "RytyGpuNeoSupported")));
+            if (supported == nullptr || supported() < 1) {
+                std::fprintf(stderr, "[neo] RYGT_NEO=1 ignored: this renderer has no PS4 Pro mode "
+                                     "(no RytyGpuNeoSupported), base PS4 mode\n");
+                return 0;
+            }
+        } else {
+            std::fprintf(stderr, "[neo] renderer not loaded yet: PS4 Pro mode not checked\n");
+        }
+#endif
+        std::fprintf(stderr, "[neo] RYGT_NEO=1: sceKernelIsNeoMode answers 1 (PS4 Pro mode)\n");
+        return 1;
+    }();
+    return neo;
+}
+
+int APS5_VABI sceKernelIsNeoMode(void) {
+    if (RunningGt7()) return Gt7NeoMode();
+#ifdef _WIN32
+    // GT Sport: the renderer's Pro mode setting (its sceKernelIsNeoMode export).
     using Query = int (APS5_VABI*)();
     if (const HMODULE renderer = GetModuleHandleW(L"libSceVideoOut.prx")) {
         if (const auto query = reinterpret_cast<Query>(

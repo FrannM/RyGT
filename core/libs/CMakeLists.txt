@@ -100,6 +100,9 @@ foreach(LIB_DIR ${LIBS_DIRS})
         if(WIN32 AND LIB_NAME STREQUAL "libSceNet")
             target_link_libraries(${LIB_NAME} PRIVATE ws2_32)
             target_compile_definitions(${LIB_NAME} PRIVATE _WIN32_WINNT=0x0602)
+        elseif(WIN32 AND LIB_NAME STREQUAL "libSceNpSessionSignaling")
+            target_link_libraries(${LIB_NAME} PRIVATE ws2_32)
+            target_compile_definitions(${LIB_NAME} PRIVATE _WIN32_WINNT=0x0602)
         elseif(WIN32 AND LIB_NAME STREQUAL "libSceNetCtl")
             target_link_libraries(${LIB_NAME} PRIVATE ws2_32 iphlpapi)
             target_compile_definitions(${LIB_NAME} PRIVATE _WIN32_WINNT=0x0602)
@@ -146,7 +149,7 @@ add_custom_target(libcohtml_prospero DEPENDS ${LIBCOHTML_PROSPERO_PATCHED})
 list(APPEND PATCHED_OUTPUTS ${LIBCOHTML_PROSPERO_PATCHED})
 
 # FEAT-GTS-261: libSceSsl2 is the PS4's second module name for the libSceSsl API (same 50 exports);
-# GT Sport loads both.
+# GT Sport and GT7 load both.
 set(LIBSCESSL_PATCHED ${PATCHED_DIR}/libSceSsl.prx)
 set(LIBSCESSL2_PATCHED ${PATCHED_DIR}/libSceSsl2.prx)
 add_custom_command(

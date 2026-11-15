@@ -15,6 +15,7 @@
 #include "prx/libkernel/Socket/include/SocketRuntime.hpp"
 #include <cerrno>
 #include <cstring>
+#include <atomic>
 #include <cstdarg>
 #include <filesystem>
 #include <stdexcept>
@@ -71,14 +72,26 @@ static std::int64_t NativePositioned(int descriptor, void* buf, std::size_t nbyt
     overlapped.OffsetHigh = static_cast<DWORD>(static_cast<std::uint64_t>(offset) >> 32u);
     DWORD done = 0;
     if (!write) {
+        if (KernelDiagEnabled() && descriptor >= 0 && descriptor <= 0xffff &&
+            offset >= 0 && static_cast<std::uint64_t>(offset) < (1ull << 48)) {
+            KernelDiagMark(static_cast<KernelDiagZone>(83),
+                           (static_cast<std::uint64_t>(descriptor) << 48) |
+                           static_cast<std::uint64_t>(offset));
+        }
         return ReadIntoGuest(buf, nbytes, [&](void* target) -> std::int64_t {
             OVERLAPPED at = overlapped;
             DWORD got = 0;
-            if (::ReadFile(handle, target, static_cast<DWORD>(nbytes), &got, &at)) return got;
-            DWORD error = ::GetLastError();
-            if (error == ERROR_HANDLE_EOF) return 0;
+            DWORD error = ERROR_SUCCESS;
+            {
+                // The host read alone, for the read diagnostics (zone 85).
+                KernelDiagScope diag(static_cast<KernelDiagZone>(85), reinterpret_cast<const void*>(static_cast<std::uintptr_t>(nbytes)));
+                if (!::ReadFile(handle, target, static_cast<DWORD>(nbytes), &got, &at)) error = ::GetLastError();
+            }
+            if (error == ERROR_SUCCESS) return got;
+            if (error == ERROR_HANDLE_EOF) { ::SetLastError(error); return 0; }
             if (error != ERROR_NO_SYSTEM_RESOURCES && error != ERROR_WORKING_SET_QUOTA &&
                 error != ERROR_NOT_ENOUGH_MEMORY && error != ERROR_NOT_ENOUGH_QUOTA) {
+                ::SetLastError(error);
                 errno = EIO;
                 return -1;
             }
@@ -106,6 +119,7 @@ static std::int64_t NativePositioned(int descriptor, void* buf, std::size_t nbyt
                     error != ERROR_NOT_ENOUGH_MEMORY && error != ERROR_NOT_ENOUGH_QUOTA) {
                     std::fprintf(stderr, "[file] read of %zu bytes at %lld failed: Windows error %lu\n",
                                  nbytes, static_cast<long long>(offset), error);
+                    ::SetLastError(error);
                     errno = EIO;
                     return -1;
                 }
@@ -115,6 +129,7 @@ static std::int64_t NativePositioned(int descriptor, void* buf, std::size_t nbyt
             if (total < nbytes && error != ERROR_HANDLE_EOF && total == 0) {
                 std::fprintf(stderr, "[file] read of %zu bytes at %lld failed after retries: Windows error %lu\n",
                              nbytes, static_cast<long long>(offset), error);
+                ::SetLastError(error);
                 errno = EIO;
                 return -1;
             }
@@ -182,8 +197,8 @@ static constexpr int GUEST_EEXIST = 17;
 static constexpr int GUEST_EINVAL = 22;
 static constexpr int GUEST_ENAMETOOLONG = 63;
 static constexpr int GUEST_ENOTDIR = 20;
-static constexpr int GUEST_ENOTEMPTY = 66;
 static constexpr int GUEST_EROFS = 30;
+static constexpr int GUEST_ENOTEMPTY = 66;
 
 static int SceErrorFromErrno(int error) {
     return static_cast<int>(0x80020000u | static_cast<unsigned>(error > 0 && error <= 34 ? error : error == GUEST_ENOTEMPTY ? error : GUEST_EIO));
@@ -196,7 +211,7 @@ int APS5_VABI chmod_nid_postfix(const char* path, int mode) {
         APS5_INVALID_ARG_EX;
     }
     auto native = ResolvePath_nid_no_patch(path);
-    if (IsReadOnlyGamePath(native, "chmod", path)) { errno = 30; return -1; }
+    if (IsGameFolderPath_nid_no_patch(native) && IsReadOnlyGamePath(native, "chmod", path)) { errno = 30; return -1; }
     if (NativeChmod(native, mode) != 0) {
         throw std::runtime_error(std::string(__func__) + ": chmod failed for " + native.string() + ", errno=" + std::to_string(errno));
     }
@@ -303,7 +318,24 @@ int64_t APS5_VABI pread_nid_postfix(int d, void* buf, size_t nbytes, int64_t off
     KernelDiagScope diag(KernelDiagZone::FileRead, __builtin_return_address(0));
     auto n = NativePread(d, buf, nbytes, offset);
     if (n < 0) {
+#ifdef _WIN32
+        // GT7 reads from a file it has just opened write-only (CacheInfo.json); the PS4 answers
+        // EBADF and the title carries on.
+        const DWORD nativeError = ::GetLastError();
+        const int guestError = nativeError == ERROR_ACCESS_DENIED || nativeError == ERROR_INVALID_HANDLE ? EBADF : GUEST_EIO;
+        static std::atomic<unsigned> logged{0};
+        if (logged.fetch_add(1) < 8) {
+            wchar_t name[MAX_PATH] = L"?";
+            const auto handle = reinterpret_cast<HANDLE>(::_get_osfhandle(d));
+            if (handle != INVALID_HANDLE_VALUE) ::GetFinalPathNameByHandleW(handle, name, MAX_PATH, 0);
+            std::fprintf(stderr, "[file] pread fd %d (%ls) offset 0x%llx, %zu bytes: error %lu, errno %d\n", d, name,
+                         static_cast<unsigned long long>(offset), nbytes, nativeError, guestError);
+        }
+        errno = guestError;
+        return -1;
+#else
         throw std::runtime_error(std::string(__func__) + ": pread failed, fd=" + std::to_string(d) + ", errno=" + std::to_string(errno));
+#endif
     }
     return n;
 }
@@ -446,7 +478,8 @@ int APS5_VABI sceKernelMkdir(const char* path, uint16_t mode) {
 #ifdef _WIN32
 
 int64_t APS5_VABI sceKernelPread(int d, void* buf, size_t nbytes, int64_t offset) {
- return pread_nid_postfix(d, buf, nbytes, offset);
+ const auto result = pread_nid_postfix(d, buf, nbytes, offset);
+ return result < 0 ? SceErrorFromErrno(errno) : result;
 }
 
 int64_t APS5_VABI sceKernelPwrite(int d, const void* buf, size_t nbytes, int64_t offset) {
@@ -510,7 +543,7 @@ int APS5_VABI sceKernelTruncate_nid_postfix(const char* path, std::int64_t lengt
     if (path == nullptr) throw std::invalid_argument("sceKernelTruncate: path is null");
     if (length < 0) return SceErrorFromErrno(GUEST_EINVAL);
     const auto native = ResolvePath_nid_no_patch(path);
-    if (IsReadOnlyGamePath(native, "truncate", path)) return SceErrorFromErrno(GUEST_EROFS);
+    if (IsGameFolderPath_nid_no_patch(native) && IsReadOnlyGamePath(native, "truncate", path)) return SceErrorFromErrno(GUEST_EROFS);
     std::error_code error;
     if (!std::filesystem::exists(native, error)) return SceErrorFromErrno(GUEST_ENOENT);
     std::filesystem::resize_file(native, static_cast<std::uintmax_t>(length), error);
@@ -521,7 +554,7 @@ int APS5_VABI sceKernelTruncate_nid_postfix(const char* path, std::int64_t lengt
 int APS5_VABI sceKernelUtimes_nid_postfix(const char* path, const KernelTimeval* times) {
     if (path == nullptr) throw std::invalid_argument("sceKernelUtimes: path is null");
     const auto native = ResolvePath_nid_no_patch(path);
-    if (IsReadOnlyGamePath(native, "utimes", path)) return SceErrorFromErrno(GUEST_EROFS);
+    if (IsGameFolderPath_nid_no_patch(native) && IsReadOnlyGamePath(native, "utimes", path)) return SceErrorFromErrno(GUEST_EROFS);
     if (NativeUtimes(native, times) != 0) return SceErrorFromErrno(errno);
     return 0;
 }

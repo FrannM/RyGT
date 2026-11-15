@@ -64,9 +64,10 @@ set DLSS_SDK=C:\path\to\DLSS
 build.cmd C:\path\to\output
 ```
 
-CI builds it in the Renderer target of `ci/build-windows.ps1`, against the SDK files pinned by
-checksum in `ci/runtime-toolchain.json` (`dlss_sdk`: NVIDIA DLSS SDK v310.9.16, its headers and
-`nvsdk_ngx_d.lib`), and `ci/package.py` places it, alone, in the package's `dlss` folder.
+CI builds it in the Renderer target of `ci/build-windows.ps1` (GT7's package: `ci/rygt7/build-windows.ps1`),
+against the SDK files pinned by checksum in `ci/runtime-toolchain.json` (`dlss_sdk`: NVIDIA DLSS SDK
+v310.9.16, its headers and `nvsdk_ngx_d.lib`), and the packager places it, alone, in the package's
+`dlss` folder.
 
 ## Install
 
