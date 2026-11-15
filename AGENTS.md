@@ -78,7 +78,12 @@ has to be published like this:
 
 `loader\build.cmd [output folder]` builds `RyGTS.exe` with the .NET Framework 4 `csc`, which only
 accepts **C# 5**: no local functions, `out var`, tuples or string interpolation. Add new `.cs`
-files to the list in `build.cmd`.
+files to the list in `build.cmd` and to `SOURCES` in `loader\test-launcher.cmd`, which builds the
+launcher and runs its checks (`loader\test-launcher.cmd <output folder>`).
+
+The launcher is for both GT Sport and GT7 (FEAT-GTS-290, `loader/UNIFIED-LAUNCHER.md`): what both games
+share is in `RyGTLoader.cs`, what only one has in `GtsPages.cs` or `Gt7Pages.cs`. Each game keeps its own
+folder, settings file and launch environment; change one game's launch only in its own file.
 
 ## Launcher version
 
