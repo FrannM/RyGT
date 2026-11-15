@@ -5,6 +5,23 @@ NVIDIA's DLSS SDK can't be linked into the GPL renderer, so DLSS lives in this s
 MIT-licensed DLL. Since FEAT-GTS-287 the RyGTS package ships it, built by CI, as
 `dlss\ryGT_dlss.dll`; NVIDIA's runtime is not shipped (see Install).
 
+## Licensing
+
+Two licences apply to the shipped `ryGT_dlss.dll`:
+
+- **This source (`ryGT_dlss.cpp`, `rygt_dlss_api.h`, the tests): MIT**, RyGT-Team's code.
+- **NVIDIA's NGX loader (`nvsdk_ngx_d.lib`), linked in as object code:** NVIDIA's, under the
+  NVIDIA RTX SDKs License (the SDK's `LICENSE.txt`, shipped as `NVIDIA-RTX-SDKs-LICENSE.txt`). It is
+  not MIT or GPL. It may be distributed only as object code inside an application, not on its own,
+  and not reverse engineered.
+
+That licence forbids putting the SDK under an open-source licence that would require its source,
+derivative works or free redistribution. So NVIDIA's code goes only into this plugin, never into
+the GPL renderer or runtime; the renderer loads the plugin at run time through `rygt_dlss_api.h`.
+Keep it that way: don't link `nvsdk_ngx*.lib` or include NVIDIA's headers anywhere else. NVIDIA's
+runtime DLLs are not shipped either: players download them with the launcher. The licence also asks
+for attribution, which the launcher's About page and the README's credits give.
+
 ## What it does
 
 Renderer patch `0020` supplies scene color, depth, motion vectors and camera jitter from the same

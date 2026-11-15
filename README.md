@@ -81,8 +81,9 @@ libs\  RyGTS runtime libraries (kernel, libc, save data, audio, input, ...)
     save data mount until the boot screen is drawn (GT Sport's boot script otherwise crashes).
 - **Launcher** ([loader](loader)): `RyGTS.exe`, which converts the game from your own dump and
   starts it, with options for the splash screen, FPS counter, Discord and AMD FSR 3.1 or FSR 1 upscaling.
-- **DLSS plugin** ([plugins/dlss](plugins/dlss)): optional NVIDIA DLSS upscaling, built and
-  installed separately (not in the releases).
+- **DLSS plugin** ([plugins/dlss](plugins/dlss)): optional NVIDIA DLSS upscaling. The package
+  ships it as `dlss\ryGT_dlss.dll`; NVIDIA's runtime comes from the launcher's download button.
+  It is licensed differently from the rest: see [License](#license).
 - **GT Sport guide** ([docs/gt-sport](docs/gt-sport)): setup from your own dump.
 
 The renderer lives in [shadGT, branch `ryty-gpu`](https://github.com/rygt-team/shadGT/tree/ryty-gpu)
@@ -209,13 +210,15 @@ Join our server for more updates: https://discord.gg/8dz4U9Nd8d
   (the AdHoc script compiler and disassembler), both MIT licensed. The launcher uses them to build
   the offline livery and decal scripts from your own game files, and Nenkai's research into
   Gran Turismo's formats and scripts made that work possible.
+- NVIDIA: the DLSS SDK's NGX loader, inside the DLSS plugin. This software uses NVIDIA DLSS. NVIDIA, the NVIDIA logo and DLSS are trademarks and/or registered trademarks of NVIDIA Corporation in the U.S. and other countries.
 - @dessierror For the artwork used in README.md
 - See [AUTHORS.md](AUTHORS.md).
 
 ## Disclaimer
 
 This project is for interoperability, research and preservation. It does not include or
-distribute copyrighted games, firmware, keys or proprietary libraries. Use your own legally
+distribute copyrighted games, firmware, keys or proprietary libraries, with one exception: the DLSS
+plugin contains NVIDIA's NGX loader, under NVIDIA's licence (see [License](#license)). Use your own legally
 obtained copy of the game and your own console's firmware files, in line with the laws where
 you live.
 
@@ -224,6 +227,27 @@ Please do NOT ask shadps4 or Ryty servers for help from this project.
 ## License
 
 GNU General Public License version 2 only, as Ryty. The renderer (shadGT) is also GPL-2.0.
+
+### The DLSS plugin (`dlss\ryGT_dlss.dll`)
+
+The DLSS plugin is licensed differently from the rest of RyGTS. It has two parts:
+
+| Part | Whose | Licence |
+|---|---|---|
+| The plugin's source ([plugins/dlss](plugins/dlss)) | RyGT-Team | MIT |
+| NVIDIA's NGX loader (`nvsdk_ngx_d.lib`, DLSS SDK v310.9.16), linked into `ryGT_dlss.dll` as object code | NVIDIA | [NVIDIA RTX SDKs License](https://github.com/NVIDIA/DLSS/blob/v310.9.16/LICENSE.txt), shipped as `NVIDIA-RTX-SDKs-LICENSE.txt` |
+
+- **NVIDIA's part is not under the MIT licence or the GPL.** NVIDIA's licence lets it be distributed
+  only as object code inside an application (section 1c). You may not reverse engineer it, take it
+  out of the plugin, or distribute it on its own (section 3).
+- **Why it is a separate plugin:** NVIDIA's licence forbids putting the SDK under an open-source licence
+  that would require its source, derivative works or free redistribution (section 3e). So it is
+  linked only into the MIT plugin, never into the GPL renderer or runtime. The renderer loads the
+  plugin at run time through the small interface in `rygt_dlss_api.h`.
+- **NVIDIA's runtime is not shipped:** `nvngx_dlss.dll`, `nvngx_dlssg.dll` and Streamline's `sl.*.dll`
+  come from the launcher's download button, under NVIDIA's terms.
+- **Attribution** (the licence's supplement): This software uses NVIDIA DLSS. NVIDIA, the NVIDIA logo and DLSS are trademarks and/or registered trademarks of NVIDIA Corporation in the U.S. and other countries. The launcher shows this
+  on its About page.
 
 Gran Turismo is a trademark of Sony Interactive Entertainment. This project is independent of Sony
 and Polyphony Digital.

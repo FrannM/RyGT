@@ -195,6 +195,8 @@ int rygt_ndebug_probe(void) { return 0; }
     Invoke-Checked 'cmd.exe' @('/d','/c','plugins\dlss\build.cmd',$plugin)
     if (!(Test-Path "$plugin/ryGT_dlss.dll")) { throw 'DLSS plugin output missing' }
     Copy-Item "$plugin/ryGT_dlss.dll" $out
+    # NVIDIA's licence for the NGX loader inside the plugin, shipped beside it in the package.
+    Copy-Item "$sdk/LICENSE.txt" "$out/NVIDIA-RTX-SDKs-LICENSE.txt"
     Copy-Item "$source/CI-SOURCE.txt" $out
     Invoke-Checked 'git' @('-C',$source,'submodule','status','--recursive')
 }

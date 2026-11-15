@@ -99,6 +99,7 @@ class PackageTests(unittest.TestCase):
                     for tool in pkg.RENDERER_TOOLS:  # FEAT-GTS-280
                         (folder / tool).write_bytes(linked_pe(exports=('renderer_' + tool.split('.')[0],)))
                     (folder / pkg.DLSS_PLUGIN).write_bytes(linked_pe(exports=('RygtDlss_GetApiVersion',)))  # FEAT-GTS-287
+                    (folder / pkg.DLSS_LICENSE).write_text('NVIDIA RTX SDKs LICENSE\n')
                 if suffix:
                     pdb = folder / (Path(binary).stem + '.pdb')
                     pdb.write_bytes(b'Microsoft C/C++ MSF 7.00 fixture')
@@ -164,7 +165,7 @@ class PackageTests(unittest.TestCase):
                     self.assertIn('tools/adcpatch/adcpatch.exe', sources['built'])
                     self.assertTrue({'libs/libc.prx', 'libs/libkernel.prx', 'libs/libScePad.prx'} <= set(sources['built']))
                     self.assertTrue({'libs/' + name for name in pkg.RENDERER_LIBRARIES} <= set(sources['built']))
-                    self.assertEqual(sources['downloaded'], ['amd_fidelityfx_vk.dll', 'amd_fidelityfx_vk-LICENSE.txt'])
+                    self.assertEqual(sources['downloaded'], ['amd_fidelityfx_vk.dll', 'amd_fidelityfx_vk-LICENSE.txt', pkg.DLSS_LICENSE])
                     self.assertNotIn('runtime_base_url', info)
                     self.assertNotIn('retained', info)
                     # The renderer's libraries win over this source's own versions.
@@ -178,6 +179,7 @@ class PackageTests(unittest.TestCase):
                                              ('tools/ryty-wheel-probe.exe', 'artifacts/runtime/ryty-wheel-probe.exe'),
                                              ('tools/ryty-feel-test.exe', 'artifacts/renderer' + ('' if variant['channel'] == 'ci' else '-diagnostics') + '/ryty-feel-test.exe'),
                                              ('dlss/ryGT_dlss.dll', 'artifacts/renderer' + ('' if variant['channel'] == 'ci' else '-diagnostics') + '/ryGT_dlss.dll'),
+                                             ('NVIDIA-RTX-SDKs-LICENSE.txt', 'artifacts/renderer' + ('' if variant['channel'] == 'ci' else '-diagnostics') + '/NVIDIA-RTX-SDKs-LICENSE.txt'),
                                              ('tools/adcpatch/adcpatch.exe', 'artifacts/tools/adcpatch.exe'),
                                              ('tools/adcpatch/README.txt', 'artifacts/tools/adcpatch-README.txt'),
                                              ('amd_fidelityfx_vk.dll', 'artifacts/tools/amd_fidelityfx_vk.dll'),

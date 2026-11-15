@@ -103,6 +103,8 @@ RENDERER_TOOLS = ('ryty-feel-test.exe',)
 # and packaged alone in dlss\. NVIDIA's runtime (nvngx_dlss.dll, Streamline) is not packaged: players
 # get it with the launcher's download button.
 DLSS_PLUGIN = 'ryGT_dlss.dll'
+# The licence of NVIDIA's NGX loader inside the plugin (the DLSS SDK's LICENSE.txt), at the package's root.
+DLSS_LICENSE = 'NVIDIA-RTX-SDKs-LICENSE.txt'
 
 
 def verify_runtime(folder, commit):
@@ -235,6 +237,7 @@ def assemble(commit, flavor, channel, suffix):
     for tool_name in RENDERER_TOOLS:
         place(verify_artifact(renderer_folder, tool_name, commit), 'tools/' + tool_name)
     place(verify_artifact(renderer_folder, DLSS_PLUGIN, commit), 'dlss/' + DLSS_PLUGIN)
+    place(verify_artifact(renderer_folder, DLSS_LICENSE, commit, 'data'), DLSS_LICENSE)
     tools_folder = Path('artifacts/tools')
     for file in TOOLS_FILES:
         kind = 'pe' if file.endswith(('.exe', '.dll')) else 'data'
@@ -245,7 +248,7 @@ def assemble(commit, flavor, channel, suffix):
             place(tool, 'tools/adcpatch/' + ('README.txt' if file == 'adcpatch-README.txt' else file))
     check_package_imports(stage)
     for name_required in ('converter/ryty.exe', 'tools/adcpatch/adcpatch.exe', 'tools/ryty-wheel-probe.exe',
-                          'tools/ryty-feel-test.exe', 'dlss/' + DLSS_PLUGIN,
+                          'tools/ryty-feel-test.exe', 'dlss/' + DLSS_PLUGIN, DLSS_LICENSE,
                           'libs/libc.prx', 'libs/libkernel.prx', 'libs/libSceBluetoothHid.prx',
                           'amd_fidelityfx_vk.dll', 'amd_fidelityfx_vk-LICENSE.txt', 'launcher/background.png',
                           'user/custom_configs/CUSA03220.json'):
@@ -266,7 +269,7 @@ def assemble(commit, flavor, channel, suffix):
                   ['libs/' + name for name in RENDERER_LIBRARIES if name not in {library.name for library in libraries}] +
                   ['tools/' + name for name in RENDERER_TOOLS] + ['dlss/' + DLSS_PLUGIN],
             toolchain=list(RUNTIME_DLLS) + ['converter/' + dll for dll in RUNTIME_DLLS],
-            downloaded=['amd_fidelityfx_vk.dll', 'amd_fidelityfx_vk-LICENSE.txt'],
+            downloaded=['amd_fidelityfx_vk.dll', 'amd_fidelityfx_vk-LICENSE.txt', DLSS_LICENSE],
             repository=[relative for _, relative in REPOSITORY_FILES]))
     if suffix:
         # PDBs are not packaged. Only these explicitly verified same-build

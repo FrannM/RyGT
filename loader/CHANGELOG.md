@@ -6,6 +6,12 @@ The version lives in `loader/Version.cs`. To release a change, bump
 `LauncherVersion.Value` there and add a section here with the same number;
 CI fails when the two disagree.
 
+## 0.2.2 - 2026-11-13
+
+* FEAT-GTS-287: Settings > About carries NVIDIA's DLSS attribution, as the NVIDIA RTX SDKs License
+  asks of software shipping its NGX loader: the package now includes the DLSS plugin
+  (dlss\ryGT_dlss.dll), which contains it. NVIDIA's runtime still comes from the download button.
+
 ## 0.2.0 - 2026-11-14
 
 * FEAT-GTS-284: Shaders from the shared shader manifest. When tools\adcpatch\shader-manifest.bin is
