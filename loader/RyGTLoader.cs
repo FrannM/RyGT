@@ -2450,7 +2450,9 @@ namespace RyGT
                 AutoSize = true, MaximumSize = new Size(860, 0), ForeColor = Dark.DimText, Tag = "heading", Margin = new Padding(1, 0, 0, 6),
                 Text = "ryGT7 converts your own copy of Gran Turismo 7 to run on Windows. " +
                        "It is a fan project, not affiliated with Sony Interactive Entertainment or Polyphony Digital; " +
-                       "Gran Turismo is their trademark. You need your own copy of the game."
+                       "Gran Turismo is their trademark. You need your own copy of the game." + Environment.NewLine +
+                       // FEAT-GTS-269: the attribution the NVIDIA RTX SDKs License asks for (the DLSS plugin).
+                       "This software uses NVIDIA DLSS. NVIDIA, the NVIDIA logo and DLSS are trademarks and/or registered trademarks of NVIDIA Corporation in the U.S. and other countries."
             });
             var folders = Section(aboutPage, "Folders");
             folders.Controls.Add(OpenRow("The ryGT7 folder", OpenFolder, "Open folder"));
