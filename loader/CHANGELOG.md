@@ -6,7 +6,13 @@ The version lives in `loader/Version.cs`. To release a change, bump
 `LauncherVersion.Value` there and add a section here with the same number;
 CI fails when the two disagree.
 
-## 0.2.1 - 2026-11-13
+## 0.2.2 - 2026-11-15
+
+* FEAT-GTS-287: Settings > About carries NVIDIA's DLSS attribution, as the NVIDIA RTX SDKs License
+  asks of software shipping its NGX loader: the package now includes the DLSS plugin
+  (dlss\ryGT_dlss.dll), which contains it. NVIDIA's runtime still comes from the download button.
+
+## 0.2.1 - 2026-11-15
 
 * FIX-GTS-286: A Changelog button beside Update opens the update's release notes as a list (headings,
   bullets and nested bullets, wrapped). Settings > About > Updates shows the whole installed version

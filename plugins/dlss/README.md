@@ -1,8 +1,27 @@
 # RyGTS DLSS plugin
 
 An optional plugin for NVIDIA DLSS reconstruction in RyGTS.
-It is not part of the RyGTS release: NVIDIA's DLSS SDK can't be linked into the GPL renderer, so
-DLSS lives in this separate MIT-licensed DLL, and you build and install it yourself.
+NVIDIA's DLSS SDK can't be linked into the GPL renderer, so DLSS lives in this separate
+MIT-licensed DLL. Since FEAT-GTS-287 the RyGTS package ships it, built by CI, as
+`dlss\ryGT_dlss.dll`; NVIDIA's runtime is not shipped (see Install).
+
+## Licensing
+
+Two licences apply to the shipped `ryGT_dlss.dll`:
+
+- **This source (`ryGT_dlss.cpp`, `rygt_dlss_api.h`, the tests): MIT**, RyGT-Team's code
+  ([LICENSE](LICENSE), shipped in the package as `ryGT_dlss-LICENSE.txt`).
+- **NVIDIA's NGX loader (`nvsdk_ngx_d.lib`), linked in as object code:** NVIDIA's, under the
+  NVIDIA RTX SDKs License (the SDK's `LICENSE.txt`, shipped as `NVIDIA-RTX-SDKs-LICENSE.txt`). It is
+  not MIT or GPL. It may be distributed only as object code inside an application, not on its own,
+  and not reverse engineered.
+
+That licence forbids putting the SDK under an open-source licence that would require its source,
+derivative works or free redistribution. So NVIDIA's code goes only into this plugin, never into
+the GPL renderer or runtime; the renderer loads the plugin at run time through `rygt_dlss_api.h`.
+Keep it that way: don't link `nvsdk_ngx*.lib` or include NVIDIA's headers anywhere else. NVIDIA's
+runtime DLLs are not shipped either: players download them with the launcher. The licence also asks
+for attribution, which the launcher's About page and the README's credits give.
 
 ## What it does
 
@@ -45,16 +64,17 @@ set DLSS_SDK=C:\path\to\DLSS
 build.cmd C:\path\to\output
 ```
 
+CI builds it in the Renderer target of `ci/build-windows.ps1`, against the SDK files pinned by
+checksum in `ci/runtime-toolchain.json` (`dlss_sdk`: NVIDIA DLSS SDK v310.9.16, its headers and
+`nvsdk_ngx_d.lib`), and `ci/package.py` places it, alone, in the package's `dlss` folder.
+
 ## Install
 
-Next to `GTSport.exe`, make a `dlss` folder holding:
-
-- `ryGT_dlss.dll` from the build;
-- `nvngx_dlss.dll` from NVIDIA's DLSS SDK (`lib\Windows_x86_64\rel`) or another DLSS release.
-
-Use "Add DLSS file..." in `RyGTS.exe` to import `nvngx_dlss.dll` while the game is closed. The
-previous runtime is kept in a timestamped `.bak` file. This imports only the NVIDIA runtime;
-`ryGT_dlss.dll` must already be installed separately.
+The package's `dlss` folder holds `ryGT_dlss.dll` and nothing else. NVIDIA's runtime
+(`nvngx_dlss.dll`, and for frame generation `nvngx_dlssg.dll` and Streamline's `sl.*.dll`) comes
+from the launcher: download it there, or import your own files with "Add DLSS files...", while the
+game is closed. The previous runtime is kept in a timestamped `.bak` file. A plugin you built
+yourself goes in the same place, `dlss\ryGT_dlss.dll`.
 
 Tick "NVIDIA DLSS" (available when both files are present), or set `"dlss_enabled": true` in the
 `GPU` section of `user\custom_configs\CUSA03220.json`. Changes apply at the next game launch.

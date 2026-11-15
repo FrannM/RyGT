@@ -23,7 +23,9 @@ REPOSITORY_FILES = (('loader/launcher/background.png', 'launcher/background.png'
                     # index; no shader code), made with adcpatch manifestpack.
                     ('ci/packaging/shader-manifest.bin', 'tools/adcpatch/shader-manifest.bin'),
                     ('tools/amd/Add-To-AMD-Software.ps1', 'tools/amd/Add-To-AMD-Software.ps1'),
-                    ('LICENSE', 'LICENSE'))
+                    ('LICENSE', 'LICENSE'),
+                    # FEAT-GTS-287: the DLSS plugin's own licence (MIT; dlss\ holds only the DLL).
+                    ('plugins/dlss/LICENSE', 'ryGT_dlss-LICENSE.txt'))
 
 
 def launcher_version(source_root):
@@ -99,6 +101,12 @@ RENDERER_LIBRARIES = ('libSceAjm.prx', 'libSceNgs2.prx', 'libSceAudio3d.prx', 'l
 # FEAT-GTS-280: programs the renderer repository builds for the launcher, packaged in tools\. The
 # HD rumble & adaptive triggers window's Test buttons run ryty-feel-test.
 RENDERER_TOOLS = ('ryty-feel-test.exe',)
+# FEAT-GTS-287: RyGTS's DLSS plugin, built with the renderer (ci/build-windows.ps1 -Target Renderer)
+# and packaged alone in dlss\. NVIDIA's runtime (nvngx_dlss.dll, Streamline) is not packaged: players
+# get it with the launcher's download button.
+DLSS_PLUGIN = 'ryGT_dlss.dll'
+# The licence of NVIDIA's NGX loader inside the plugin (the DLSS SDK's LICENSE.txt), at the package's root.
+DLSS_LICENSE = 'NVIDIA-RTX-SDKs-LICENSE.txt'
 
 
 def verify_runtime(folder, commit):
@@ -230,6 +238,8 @@ def assemble(commit, flavor, channel, suffix):
         place(verify_artifact(renderer_folder, library_name, commit), 'libs/' + library_name)
     for tool_name in RENDERER_TOOLS:
         place(verify_artifact(renderer_folder, tool_name, commit), 'tools/' + tool_name)
+    place(verify_artifact(renderer_folder, DLSS_PLUGIN, commit), 'dlss/' + DLSS_PLUGIN)
+    place(verify_artifact(renderer_folder, DLSS_LICENSE, commit, 'data'), DLSS_LICENSE)
     tools_folder = Path('artifacts/tools')
     for file in TOOLS_FILES:
         kind = 'pe' if file.endswith(('.exe', '.dll')) else 'data'
@@ -240,12 +250,14 @@ def assemble(commit, flavor, channel, suffix):
             place(tool, 'tools/adcpatch/' + ('README.txt' if file == 'adcpatch-README.txt' else file))
     check_package_imports(stage)
     for name_required in ('converter/ryty.exe', 'tools/adcpatch/adcpatch.exe', 'tools/ryty-wheel-probe.exe',
-                          'tools/ryty-feel-test.exe',
+                          'tools/ryty-feel-test.exe', 'dlss/' + DLSS_PLUGIN, DLSS_LICENSE,
                           'libs/libc.prx', 'libs/libkernel.prx', 'libs/libSceBluetoothHid.prx',
                           'amd_fidelityfx_vk.dll', 'amd_fidelityfx_vk-LICENSE.txt', 'launcher/background.png',
                           'user/custom_configs/CUSA03220.json'):
         if not (stage / name_required).is_file():
             raise RuntimeError(f'Incomplete runtime package: {name_required}')
+    if sorted(file.name for file in (stage / 'dlss').iterdir()) != [DLSS_PLUGIN]:
+        raise RuntimeError('dlss\\ holds only ' + DLSS_PLUGIN + ' (NVIDIA\'s runtime is downloaded by the launcher)')
     write_packaged_defaults(stage)
     provenance = dict(commit=commit, flavor=flavor, channel=channel,
         configuration='RelWithDebInfo' if suffix else 'Release', optimized=True,
@@ -257,9 +269,9 @@ def assemble(commit, flavor, channel, suffix):
             built=['RyGTS.exe', 'libs/libSceVideoOut.prx', 'converter/ryty.exe', 'tools/ryty-wheel-probe.exe',
                    'tools/adcpatch/adcpatch.exe'] + sorted('libs/' + library.name for library in libraries) +
                   ['libs/' + name for name in RENDERER_LIBRARIES if name not in {library.name for library in libraries}] +
-                  ['tools/' + name for name in RENDERER_TOOLS],
+                  ['tools/' + name for name in RENDERER_TOOLS] + ['dlss/' + DLSS_PLUGIN],
             toolchain=list(RUNTIME_DLLS) + ['converter/' + dll for dll in RUNTIME_DLLS],
-            downloaded=['amd_fidelityfx_vk.dll', 'amd_fidelityfx_vk-LICENSE.txt'],
+            downloaded=['amd_fidelityfx_vk.dll', 'amd_fidelityfx_vk-LICENSE.txt', DLSS_LICENSE],
             repository=[relative for _, relative in REPOSITORY_FILES]))
     if suffix:
         # PDBs are not packaged. Only these explicitly verified same-build

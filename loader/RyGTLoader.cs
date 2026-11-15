@@ -1885,7 +1885,9 @@ namespace RyGT
                        Environment.NewLine + Environment.NewLine +
                        "Copyright \u00A9 2026 RyGT-Team." + Environment.NewLine +
                        "Gran Turismo is a trademark of Sony Interactive Entertainment. " +
-                       "This project is independent of Sony and Polyphony Digital."
+                       "This project is independent of Sony and Polyphony Digital." + Environment.NewLine +
+                       // FEAT-GTS-287: the attribution the NVIDIA RTX SDKs License asks for (the DLSS plugin).
+                       "This software uses NVIDIA DLSS. NVIDIA, the NVIDIA logo and DLSS are trademarks and/or registered trademarks of NVIDIA Corporation in the U.S. and other countries."
             });
             var folders = Section(aboutPage, "Folders");
             folders.Controls.Add(OpenRow("The RyGTS folder", OpenFolder, "Open folder"));
