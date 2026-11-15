@@ -8,6 +8,9 @@ CI fails when the two disagree.
 
 ## 0.2.1 - 2026-11-13
 
+* FIX-GTS-286: A Changelog button beside Update opens the update's release notes as a list (headings,
+  bullets and nested bullets, wrapped). Settings > About > Updates shows the whole installed version
+  ("Launcher 0.2.1 (nightly 2a662886)"); its closing parenthesis was cut off.
 * FIX-GTS-286: The updater found no GitHub release: it looked for tags starting gts- and packages
   named RyGTS-*.zip, and the releases are published as gt-sport-2026-11-15 with
   GTSport-Ryty-shadGT-2026-11-15.zip. It now takes both names, and the package with a .sha256 beside

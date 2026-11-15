@@ -32,6 +32,33 @@ namespace RyGT
         public bool Prerelease;
 
         /// The first lines of the notes' "What's new" (or of the notes), for the home view.
+        /// FIX-GTS-286: the notes as a list of entries for the Changelog window: headings (level 0), paragraphs
+        /// and bullets (1), and nested bullets (2), without the Markdown marks.
+        public List<KeyValuePair<int, string>> Changes()
+        {
+            var entries = new List<KeyValuePair<int, string>>();
+            foreach (var raw in (Notes ?? "").Replace("\r", "").Split('\n'))
+            {
+                if (raw.Trim().Length == 0) continue;
+                string line = raw.TrimEnd();
+                int indent = line.Length - line.TrimStart().Length;
+                string text = line.Trim();
+                int level;
+                if (text.StartsWith("#")) { level = 0; text = text.TrimStart('#').Trim(); }
+                else if (text.StartsWith("- ") || text.StartsWith("* ")) { level = indent >= 2 ? 2 : 1; text = text.Substring(2); }
+                else if (entries.Count > 0 && indent >= 2) { var last = entries[entries.Count - 1]; entries[entries.Count - 1] = new KeyValuePair<int, string>(last.Key, last.Value + " " + Plain(text)); continue; }
+                else level = 1;
+                entries.Add(new KeyValuePair<int, string>(level, Plain(text)));
+            }
+            return entries;
+        }
+
+        static string Plain(string text)
+        {
+            text = Regex.Replace(text, @"\[([^\]]*)\]\([^)]*\)", "$1"); // [text](link)
+            return Regex.Replace(text, @"\*\*|`", "");
+        }
+
         public string Summary(int maxLength)
         {
             string text = Notes ?? "";

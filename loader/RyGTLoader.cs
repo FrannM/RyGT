@@ -918,6 +918,7 @@ namespace RyGT
         /// FEAT-GTS-272: the updater's notice (a newer build) at the top right, above its Update button.
         public string Notice = "";
         public GlowButton UpdateButton;
+        public GlowButton ChangelogButton; // FIX-GTS-286: left of UpdateButton
         const int NoticeTop = 30, NoticeWidth = 420;
         int NoticeHeight
         {
@@ -1079,6 +1080,8 @@ namespace RyGT
             }
             if (UpdateButton != null)
                 UpdateButton.Location = new Point(Width - UpdateButton.Width - 30, NoticeTop + NoticeHeight + 14);
+            if (UpdateButton != null && ChangelogButton != null)
+                ChangelogButton.Location = new Point(UpdateButton.Left - ChangelogButton.Width - 10, UpdateButton.Top);
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -1564,6 +1567,78 @@ namespace RyGT
         }
     }
 
+    /// FIX-GTS-286: a release's notes, one entry per heading, paragraph or bullet; headings bold, nested
+    /// bullets indented, long entries wrapped.
+    class ChangelogDialog : Form
+    {
+        public ChangelogDialog(ReleaseInfo release)
+        {
+            Text = release.Name.Length > 0 ? release.Name : "Changelog";
+            StartPosition = FormStartPosition.CenterParent;
+            ShowInTaskbar = false;
+            MinimizeBox = false;
+            ClientSize = new Size(760, 560);
+            MinimumSize = new Size(420, 300);
+            Font = new Font("Segoe UI", 9.5f);
+            Padding = new Padding(12);
+            var entries = release.Changes();
+            var heading = new Font(Font, FontStyle.Bold);
+            var list = new ListBox
+            {
+                Dock = DockStyle.Fill, DrawMode = DrawMode.OwnerDrawVariable, BorderStyle = BorderStyle.None,
+                IntegralHeight = false, BackColor = Dark.Field, ForeColor = Dark.Text, AccessibleName = "Changes"
+            };
+            foreach (var entry in entries) list.Items.Add(entry);
+            Func<int, int> indent = level => level == 0 ? 6 : level == 1 ? 22 : 40;
+            const TextFormatFlags flags = TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.Left;
+            list.MeasureItem += (sender, e) =>
+            {
+                // The list can ask for an item it no longer has while it is being refilled.
+                if (e.Index < 0 || e.Index >= list.Items.Count) return;
+                var entry = (KeyValuePair<int, string>)list.Items[e.Index];
+                int width = Math.Max(100, list.ClientSize.Width - indent(entry.Key) - 10);
+                var size = TextRenderer.MeasureText(entry.Value, entry.Key == 0 ? heading : list.Font, new Size(width, 0), flags);
+                e.ItemHeight = Math.Min(255, size.Height + (entry.Key == 0 ? 14 : 6));
+            };
+            list.DrawItem += (sender, e) =>
+            {
+                if (e.Index < 0 || e.Index >= list.Items.Count) return;
+                var entry = (KeyValuePair<int, string>)list.Items[e.Index];
+                bool selected = (e.State & DrawItemState.Selected) != 0;
+                using (var back = new SolidBrush(selected ? Dark.Button : list.BackColor)) e.Graphics.FillRectangle(back, e.Bounds);
+                int x = e.Bounds.X + indent(entry.Key);
+                var area = new Rectangle(x, e.Bounds.Y + (entry.Key == 0 ? 10 : 3), e.Bounds.Right - x - 10, e.Bounds.Height);
+                if (entry.Key > 0)
+                    TextRenderer.DrawText(e.Graphics, entry.Key == 1 ? "\u2022" : "\u2013", list.Font,
+                                          new Point(x - 12, area.Y), Dark.DimText, TextFormatFlags.NoPrefix);
+                TextRenderer.DrawText(e.Graphics, entry.Value, entry.Key == 0 ? heading : list.Font, area,
+                                      entry.Key == 0 ? Color.White : Dark.Text, flags);
+            };
+            // Wrapped heights follow the width (measured again only when the width changed).
+            int measuredWidth = -1;
+            list.Resize += delegate
+            {
+                if (!list.IsHandleCreated || list.ClientSize.Width == measuredWidth) return;
+                measuredWidth = list.ClientSize.Width;
+                list.BeginUpdate();
+                var items = list.Items.Cast<object>().ToArray();
+                list.Items.Clear();
+                list.Items.AddRange(items);
+                list.EndUpdate();
+            };
+            var close = new Button { Text = "Close", DialogResult = DialogResult.Cancel, AutoSize = true, Anchor = AnchorStyles.Right };
+            var bottom = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(0, 10, 0, 0), BackColor = Color.Transparent };
+            bottom.Controls.Add(close);
+            Controls.Add(list);
+            Controls.Add(bottom);
+            CancelButton = close;
+            Dark.Apply(this);
+            list.BackColor = Dark.Field;
+            HandleCreated += delegate { Dark.TitleBar(this); };
+            Disposed += delegate { heading.Dispose(); };
+        }
+    }
+
     class Settings
     {
         public string Game = "", Update = "", Modules = "", Fonts = "";
@@ -1629,6 +1704,7 @@ namespace RyGT
         // Settings: a sidebar of categories and their pages.
         readonly HomeView home;
         readonly GlowButton updateButton; // FEAT-GTS-272
+        readonly GlowButton changelogButton; // FIX-GTS-286
         ReleaseInfo pendingUpdate;
         readonly Panel settingsView, pagesHost, sidebar;
         readonly Curtain curtain;
@@ -1677,6 +1753,15 @@ namespace RyGT
             updateButton.Click += delegate { InstallUpdate(); };
             home.UpdateButton = updateButton;
             home.Controls.Add(updateButton);
+            // FIX-GTS-286: the pending update's release notes, as a list.
+            changelogButton = new GlowButton { Text = "Changelog", Size = new Size(150, 40), Font = Dark.Caps(10f), Visible = false };
+            changelogButton.Click += delegate
+            {
+                if (pendingUpdate == null) return;
+                using (var dialog = new ChangelogDialog(pendingUpdate)) dialog.ShowDialog(this);
+            };
+            home.ChangelogButton = changelogButton;
+            home.Controls.Add(changelogButton);
             curtain = new Curtain { Dock = DockStyle.Fill, Visible = false };
             Controls.Add(curtain);
             Controls.Add(settingsView);
@@ -2528,6 +2613,7 @@ namespace RyGT
                               " (you have " + Updater.Display(installed) + ")." + Environment.NewLine + latest.Summary(240);
                 updateButton.Text = "Update to " + Updater.Display(latest.Version);
                 updateButton.Visible = true;
+                changelogButton.Visible = latest.Changes().Count > 0;
                 home.PerformLayout();
                 home.Invalidate(true);
             }
@@ -2545,6 +2631,7 @@ namespace RyGT
             pendingUpdate = null;
             home.Notice = "";
             updateButton.Visible = false;
+            changelogButton.Visible = false;
             home.PerformLayout();
             home.Invalidate(true);
         }
@@ -2616,7 +2703,7 @@ namespace RyGT
             var label = new Label
             {
                 Text = "Launcher " + LauncherVersion.Value + (installed == null ? "" : " (" + Updater.Display(installed) + ")"),
-                AutoSize = false, Width = 196, Height = 20, BackColor = Color.Transparent, Margin = new Padding(0, 6, 8, 0)
+                AutoSize = true, MinimumSize = new Size(196, 20), BackColor = Color.Transparent, Margin = new Padding(0, 6, 8, 0) // FIX-GTS-286: not cut off
             };
             var check = new Button { Text = "Check now", AutoSize = true, Margin = new Padding(0, 0, 6, 0) };
             check.Click += delegate { CheckForUpdate(true); };
