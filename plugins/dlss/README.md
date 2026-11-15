@@ -9,7 +9,8 @@ MIT-licensed DLL. Since FEAT-GTS-287 the RyGTS package ships it, built by CI, as
 
 Two licences apply to the shipped `ryGT_dlss.dll`:
 
-- **This source (`ryGT_dlss.cpp`, `rygt_dlss_api.h`, the tests): MIT**, RyGT-Team's code.
+- **This source (`ryGT_dlss.cpp`, `rygt_dlss_api.h`, the tests): MIT**, RyGT-Team's code
+  ([LICENSE](LICENSE), shipped in the package as `ryGT_dlss-LICENSE.txt`).
 - **NVIDIA's NGX loader (`nvsdk_ngx_d.lib`), linked in as object code:** NVIDIA's, under the
   NVIDIA RTX SDKs License (the SDK's `LICENSE.txt`, shipped as `NVIDIA-RTX-SDKs-LICENSE.txt`). It is
   not MIT or GPL. It may be distributed only as object code inside an application, not on its own,

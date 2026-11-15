@@ -234,7 +234,7 @@ The DLSS plugin is licensed differently from the rest of RyGTS. It has two parts
 
 | Part | Whose | Licence |
 |---|---|---|
-| The plugin's source ([plugins/dlss](plugins/dlss)) | RyGT-Team | MIT |
+| The plugin's source ([plugins/dlss](plugins/dlss)) | RyGT-Team | MIT ([plugins/dlss/LICENSE](plugins/dlss/LICENSE), shipped as `ryGT_dlss-LICENSE.txt`) |
 | NVIDIA's NGX loader (`nvsdk_ngx_d.lib`, DLSS SDK v310.9.16), linked into `ryGT_dlss.dll` as object code | NVIDIA | [NVIDIA RTX SDKs License](https://github.com/NVIDIA/DLSS/blob/v310.9.16/LICENSE.txt), shipped as `NVIDIA-RTX-SDKs-LICENSE.txt` |
 
 - **NVIDIA's part is not under the MIT licence or the GPL.** NVIDIA's licence lets it be distributed

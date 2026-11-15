@@ -23,7 +23,9 @@ REPOSITORY_FILES = (('loader/launcher/background.png', 'launcher/background.png'
                     # index; no shader code), made with adcpatch manifestpack.
                     ('ci/packaging/shader-manifest.bin', 'tools/adcpatch/shader-manifest.bin'),
                     ('tools/amd/Add-To-AMD-Software.ps1', 'tools/amd/Add-To-AMD-Software.ps1'),
-                    ('LICENSE', 'LICENSE'))
+                    ('LICENSE', 'LICENSE'),
+                    # FEAT-GTS-287: the DLSS plugin's own licence (MIT; dlss\ holds only the DLL).
+                    ('plugins/dlss/LICENSE', 'ryGT_dlss-LICENSE.txt'))
 
 
 def launcher_version(source_root):

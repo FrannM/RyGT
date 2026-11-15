@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: Copyright 2026 RyGT Team
 // SPDX-License-Identifier: MIT
 
 #pragma once
