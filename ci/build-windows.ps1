@@ -201,10 +201,10 @@ int rygt_ndebug_probe(void) { return 0; }
     $dlss = (Get-Content ci/runtime-toolchain.json -Raw | ConvertFrom-Json).dlss_sdk
     $sdk = Join-Path (Get-Location) ('build/ci-dlss-sdk' + $suffix)
     foreach ($file in $dlss.files) {
-        $target = Join-Path $sdk $file.path
-        New-Item -ItemType Directory -Force (Split-Path $target -Parent) | Out-Null
-        Invoke-WebRequest -UseBasicParsing "$($dlss.base_url)/$($file.path)" -OutFile $target
-        if ((Get-FileHash $target -Algorithm SHA256).Hash.ToLowerInvariant() -cne $file.sha256) { throw "SHA-256 mismatch for DLSS SDK $($file.path)" }
+        $sdkFile = Join-Path $sdk $file.path
+        New-Item -ItemType Directory -Force (Split-Path $sdkFile -Parent) | Out-Null
+        Invoke-WebRequest -UseBasicParsing "$($dlss.base_url)/$($file.path)" -OutFile $sdkFile
+        if ((Get-FileHash $sdkFile -Algorithm SHA256).Hash.ToLowerInvariant() -cne $file.sha256) { throw "SHA-256 mismatch for DLSS SDK $($file.path)" }
     }
     $env:DLSS_SDK = $sdk
     $env:VULKAN_INCLUDE = "$source/externals/vulkan-headers/include"
