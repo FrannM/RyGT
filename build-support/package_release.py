@@ -214,13 +214,13 @@ def main():
         package.put(args.dlss_sdk_license, "licenses\\NVIDIA-DLSS-SDK\\LICENSE.txt")
     for n in ("CUSA24769.xml", "README.md", "Proper-Offline-Patch-README.txt"):
         package.put(REPO / "patches" / n, "patches\\" + n)
-    package.put(REPO / "loader" / "launcher" / "background.png", "launcher\\background.png")
-    package.put(REPO / "loader" / "launcher" / "logo.png", "launcher\\logo.png")
+    package.put(REPO / "loader" / "launcher-gt7" / "background.png", "launcher\\background.png")
+    package.put(REPO / "loader" / "launcher-gt7" / "logo.png", "launcher\\logo.png")
     package.put(REPO / "loader" / "launcher" / "README.txt", "launcher\\README.txt")
     package.put(REPO / "LICENSE", "LICENSE")
     package.put(REPO / "LICENSE", "licenses\\RyGT7\\LICENSE")
     package.put(REPO / "AUTHORS.md", "licenses\\RyGT7\\AUTHORS.md")
-    package.put(REPO / "loader" / "README.md", "docs\\launcher.md")
+    package.put(REPO / "loader" / "GT7-LAUNCHER.md", "docs\\launcher.md")
     package.put(REPO / "runtime" / "gt7" / "README.md", "docs\\runtime-gt7.md")
     counts = {"RyGT7 deps": package.put_dependency_licenses(
         args.deps_source, "licenses\\RyGT7\\3rdparty", "RyGT7 dependencies")}
