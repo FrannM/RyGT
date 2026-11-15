@@ -1,7 +1,7 @@
-// FEAT-GTS-437: the Advanced page. The experimental renderer and runtime switches (RYGT_* and SHADGT_* environment
+﻿// FEAT-GTS-437: the Advanced page. The experimental renderer and runtime switches (RYGT_* and SHADGT_* environment
 // variables read by shadGT and RyGTS) as one table with a description on hover, and a table for any
 // other variable. All of them are saved in RyGT.ini as env= lines and set for GTSport.exe when the
-// launcher starts it (CustomEnvironment.Apply).
+// launcher starts it (CustomEnvironment.Apply). FEAT-GTS-290: GT7's page is the same, in RyGT7.ini for GT7.exe.
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -80,11 +80,33 @@ namespace RyGT
         public const string UndescribedGroup = "Not described in this renderer build";
         const string MetadataPrefix = "RYGTSW1|";
 
+        /// FEAT-GTS-290: the game whose renderer and launch the page is for (set by the launcher before it
+        /// builds the page); each game's launch sets its own variables.
+        public static GameKind Game = GameKind.GTSport;
+
         /// Set by the launcher itself from its own settings; changing them here would be overwritten.
-        static readonly HashSet<string> LauncherManaged = new HashSet<string>
+        static HashSet<string> LauncherManaged { get { return Game == GameKind.GT7 ? Gt7Managed : GtsManaged; } }
+
+        static readonly HashSet<string> GtsManaged = new HashSet<string>
         {
             "RYGT_LOG_DIRECTORY", "RYGT_HDD_STREAMING", "SHADGT_ANTI_LAG", "SHADGT_PATCH", "SHADGT_EXPERIMENTAL_SCENE_VIEWPORT",
             "SHADGT_SCENE_WIDTH", "SHADGT_SCENE_HEIGHT", "SHADGT_LOW_RES_COMPOSITION"
+        };
+
+        static readonly HashSet<string> Gt7Managed = new HashSet<string>
+        {
+            // Set by GT7's StartGame every time (from its own settings); the Advanced page would only
+            // override them. The ones it sets only when an option is checked (RYGT_MANIFEST_*,
+            // RYGT_COMPILE_PACK) stay listed.
+            "RYGT_LOG_DIRECTORY", "RYGT_NATIVE_INPLACE_RANGES", "RYGT_NATIVE_INPLACE_FROM", "SHADGT_FPS_LOCK",
+            "RYGT_DRIVER_CACHE_MAX_MB", "RYGT_AMD_SINGLE_SAMPLE_BARYCENTRIC", "RYGT_DLSSG_FRAMES",
+            "RYGT_UPSCALE_QUALITY", "RYGT_TEXTURE_LOD_BIAS",
+            // The Graphics page's DLSS "Texture detail" (FEAT-GT7-181) sets these for Reduced and Off.
+            "RYGT_DLSS_TEMPORAL_MIP_BIAS", "RYGT_DLSS_TEMPORAL_MIP_EXTRA",
+            // PS4 Pro mode on the Graphics page (NEO-GT7, #33) sets or removes these itself; set here they
+            // would silently override it.
+            "RYGT_NEO", "RYGT_NEO_TV", "RYGT_NEO_EXTRAS",
+            // RYTY_INTEROP_BASE is set every time too (not a RYGT_ name, so never listed).
         };
 
         static readonly string[] GroupOrder =
