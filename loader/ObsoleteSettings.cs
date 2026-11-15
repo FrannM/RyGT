@@ -72,6 +72,7 @@ namespace RyGT
         public ObsoleteSettingsDialog(IList<string> entries, bool renames = false)
         {
             Text = renames ? "Update obsolete settings?" : "Remove obsolete settings?";
+            try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { } // the launcher's logo
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = MinimizeBox = ShowInTaskbar = false;
             StartPosition = FormStartPosition.CenterParent;
