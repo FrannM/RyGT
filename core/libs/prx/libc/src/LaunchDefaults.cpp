@@ -29,6 +29,17 @@ std::string ExeFolder() {
     return narrow;
 }
 
+/// Whether this process is GT7.exe (the file name the converted game has; the renderer and libkernel
+/// tell the games apart the same way).
+bool RunningGt7Exe() {
+    wchar_t path[MAX_PATH * 2];
+    const DWORD length = GetModuleFileNameW(nullptr, path, MAX_PATH * 2);
+    if (length == 0 || length >= MAX_PATH * 2) return false;
+    const wchar_t* name = path;
+    for (const wchar_t* c = path; *c; ++c) if (*c == L'\\' || *c == L'/') name = c + 1;
+    return _wcsicmp(name, L"GT7.exe") == 0;
+}
+
 std::string ReadFile(const std::string& path) {
     std::string text;
     const int length = MultiByteToWideChar(CP_UTF8, 0, path.c_str(), -1, nullptr, 0);
@@ -91,6 +102,10 @@ void Apply() {
     if (fromLauncher != nullptr && *fromLauncher != '\0') return;
 #ifdef _WIN32
     const std::string root = ExeFolder();
+    // FEAT-GTS-291: these are GT7's settings (its write-back ranges, its 30 fps race lock). GT Sport's
+    // launcher sets no RYTY_INTEROP_BASE, so under GTSport.exe they were applied as well and capped
+    // GT Sport at 30 fps. Only a GT7.exe started without its launcher takes them.
+    if (!RunningGt7Exe()) return;
     const std::string config = ReadFile(root + "user\\custom_configs\\CUSA03220.json");
 #else
     const std::string root;
