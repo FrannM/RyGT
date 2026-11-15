@@ -191,7 +191,7 @@ namespace RyGT
         static WebClient Client()
         {
             ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
-            var client = new WebClient();
+            var client = new WebClient { Encoding = System.Text.Encoding.UTF8 }; // FIX-GTS-286: the notes are UTF-8 ("·", not "Â·")
             client.Headers[HttpRequestHeader.UserAgent] = Product + "-launcher";
             return client;
         }

@@ -1568,9 +1568,63 @@ namespace RyGT
     }
 
     /// FIX-GTS-286: a release's notes, one entry per heading, paragraph or bullet; headings bold, nested
-    /// bullets indented, long entries wrapped.
+    /// bullets indented, long entries wrapped. Scrolled by pixels, so it ends where the text ends.
     class ChangelogDialog : Form
     {
+        sealed class NotesView : Control
+        {
+            readonly List<KeyValuePair<int, string>> entries;
+            readonly Font heading;
+            readonly List<Rectangle> areas = new List<Rectangle>();
+            const TextFormatFlags Flags = TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.Left;
+
+            public NotesView(List<KeyValuePair<int, string>> entries, Font font)
+            {
+                this.entries = entries;
+                Font = font;
+                heading = new Font(font, FontStyle.Bold);
+                SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+            }
+
+            static int Indent(int level) { return level == 0 ? 8 : level == 1 ? 24 : 42; }
+
+            /// Lays the entries out for `width`; the height they take.
+            public int Layout(int width)
+            {
+                areas.Clear();
+                int y = 6;
+                foreach (var entry in entries)
+                {
+                    if (entry.Key == 0 && y > 6) y += 10;
+                    int x = Indent(entry.Key), w = Math.Max(100, width - x - 12);
+                    var size = TextRenderer.MeasureText(entry.Value, entry.Key == 0 ? heading : Font, new Size(w, 0), Flags);
+                    areas.Add(new Rectangle(x, y, w, size.Height));
+                    y += size.Height + 6;
+                }
+                return y + 4;
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                e.Graphics.Clear(BackColor);
+                for (int k = 0; k < entries.Count && k < areas.Count; ++k)
+                {
+                    var area = areas[k];
+                    if (!e.ClipRectangle.IntersectsWith(area)) continue;
+                    var entry = entries[k];
+                    if (entry.Key > 0)
+                        TextRenderer.DrawText(e.Graphics, entry.Key == 1 ? "\u2022" : "\u2013", Font, new Point(area.X - 13, area.Y), Dark.DimText, TextFormatFlags.NoPrefix);
+                    TextRenderer.DrawText(e.Graphics, entry.Value, entry.Key == 0 ? heading : Font, area, entry.Key == 0 ? Color.White : Dark.Text, Flags);
+                }
+            }
+
+            protected override void Dispose(bool disposing)
+            {
+                if (disposing) heading.Dispose();
+                base.Dispose(disposing);
+            }
+        }
+
         public ChangelogDialog(ReleaseInfo release)
         {
             Text = release.Name.Length > 0 ? release.Name : "Changelog";
@@ -1582,61 +1636,33 @@ namespace RyGT
             MinimumSize = new Size(420, 300);
             Font = new Font("Segoe UI", 9.5f);
             Padding = new Padding(12);
-            var entries = release.Changes();
-            var heading = new Font(Font, FontStyle.Bold);
-            var list = new ListBox
+            var scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Dark.Field };
+            var view = new NotesView(release.Changes(), Font) { BackColor = Dark.Field, Location = new Point(0, 0) };
+            scroll.Controls.Add(view);
+            // The view is as tall as its text, so the panel scrolls exactly to its end.
+            Action fit = delegate
             {
-                Dock = DockStyle.Fill, DrawMode = DrawMode.OwnerDrawVariable, BorderStyle = BorderStyle.None,
-                IntegralHeight = false, BackColor = Dark.Field, ForeColor = Dark.Text, AccessibleName = "Changes"
+                int width = scroll.ClientSize.Width;
+                int height = view.Layout(width);
+                if (height > scroll.ClientSize.Height && !scroll.VerticalScroll.Visible)
+                    height = view.Layout(width - SystemInformation.VerticalScrollBarWidth); // room for the bar
+                view.Size = new Size(Math.Max(1, scroll.ClientSize.Width), height);
+                view.Invalidate();
             };
-            foreach (var entry in entries) list.Items.Add(entry);
-            Func<int, int> indent = level => level == 0 ? 6 : level == 1 ? 22 : 40;
-            const TextFormatFlags flags = TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.Left;
-            list.MeasureItem += (sender, e) =>
-            {
-                // The list can ask for an item it no longer has while it is being refilled.
-                if (e.Index < 0 || e.Index >= list.Items.Count) return;
-                var entry = (KeyValuePair<int, string>)list.Items[e.Index];
-                int width = Math.Max(100, list.ClientSize.Width - indent(entry.Key) - 10);
-                var size = TextRenderer.MeasureText(entry.Value, entry.Key == 0 ? heading : list.Font, new Size(width, 0), flags);
-                e.ItemHeight = Math.Min(255, size.Height + (entry.Key == 0 ? 14 : 6));
-            };
-            list.DrawItem += (sender, e) =>
-            {
-                if (e.Index < 0 || e.Index >= list.Items.Count) return;
-                var entry = (KeyValuePair<int, string>)list.Items[e.Index];
-                bool selected = (e.State & DrawItemState.Selected) != 0;
-                using (var back = new SolidBrush(selected ? Dark.Button : list.BackColor)) e.Graphics.FillRectangle(back, e.Bounds);
-                int x = e.Bounds.X + indent(entry.Key);
-                var area = new Rectangle(x, e.Bounds.Y + (entry.Key == 0 ? 10 : 3), e.Bounds.Right - x - 10, e.Bounds.Height);
-                if (entry.Key > 0)
-                    TextRenderer.DrawText(e.Graphics, entry.Key == 1 ? "\u2022" : "\u2013", list.Font,
-                                          new Point(x - 12, area.Y), Dark.DimText, TextFormatFlags.NoPrefix);
-                TextRenderer.DrawText(e.Graphics, entry.Value, entry.Key == 0 ? heading : list.Font, area,
-                                      entry.Key == 0 ? Color.White : Dark.Text, flags);
-            };
-            // Wrapped heights follow the width (measured again only when the width changed).
-            int measuredWidth = -1;
-            list.Resize += delegate
-            {
-                if (!list.IsHandleCreated || list.ClientSize.Width == measuredWidth) return;
-                measuredWidth = list.ClientSize.Width;
-                list.BeginUpdate();
-                var items = list.Items.Cast<object>().ToArray();
-                list.Items.Clear();
-                list.Items.AddRange(items);
-                list.EndUpdate();
-            };
-            var close = new Button { Text = "Close", DialogResult = DialogResult.Cancel, AutoSize = true, Anchor = AnchorStyles.Right };
+            scroll.Resize += delegate { fit(); };
+            scroll.MouseEnter += delegate { scroll.Focus(); };
+            view.MouseEnter += delegate { scroll.Focus(); };
+            var close = new Button { Text = "Close", DialogResult = DialogResult.Cancel, AutoSize = true };
             var bottom = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(0, 10, 0, 0), BackColor = Color.Transparent };
             bottom.Controls.Add(close);
-            Controls.Add(list);
+            Controls.Add(scroll);
             Controls.Add(bottom);
             CancelButton = close;
             Dark.Apply(this);
-            list.BackColor = Dark.Field;
+            scroll.BackColor = Dark.Field;
+            view.BackColor = Dark.Field;
             HandleCreated += delegate { Dark.TitleBar(this); };
-            Disposed += delegate { heading.Dispose(); };
+            Shown += delegate { fit(); scroll.Focus(); };
         }
     }
 
