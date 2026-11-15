@@ -2610,7 +2610,8 @@ namespace RyGT
                 pendingUpdate = latest;
                 home.Notice = (latest.Artifact ? "A newer RyGTS nightly is available: " + Updater.Display(latest.Version)
                                                : "RyGTS " + latest.Version + (latest.Prerelease ? " (prerelease)" : "") + " is available") +
-                              " (you have " + Updater.Display(installed) + ")." + Environment.NewLine + latest.Summary(240);
+                              " (you have " + Updater.Display(installed) + ")." +
+                              (latest.Changes().Count > 0 ? "" : Environment.NewLine + latest.Summary(240)); // the notes are behind Changelog
                 updateButton.Text = "Update to " + Updater.Display(latest.Version);
                 updateButton.Visible = true;
                 changelogButton.Visible = latest.Changes().Count > 0;
