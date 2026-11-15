@@ -10,7 +10,7 @@
 RyGTS ports Gran Turismo Sport (CUSA03220, update 1.69) from PlayStation 4 to Windows. The game is
 not emulated: RyGTS's converter turns the game's executable into `GTSport.exe`, the game code runs
 directly on your CPU, and RyGTS's libraries stand in for the PS4 system. Graphics go through
-[shadGT](https://gitlab.com/rygt-team/shadGT)'s Vulkan renderer, built as the
+[shadGT](https://github.com/rygt-team/shadGT/tree/ryty-gpu)'s Vulkan renderer, built as the
 game's video output library.
 
 RyGTS is a fork of [Ryty](https://github.com/aarvsn/Ryty), the general PS4/PS5 porting tool, with
@@ -42,7 +42,7 @@ Tested on Windows 10 LTSC with an AMD Ryzen 7 7745HX and an RTX 4070 8GB
 
 ## Download
 
-Get the latest build from [Releases](https://gitlab.com/rygt-team/RyGTS/-/releases). A release
+Get the latest build from [Releases](https://github.com/rygt-team/RyGTS/releases). A release
 contains the runtime libraries, the renderer, the converter, a launcher and the GT Sport settings.
 It contains **no game files**: you need your own decrypted dump of GT Sport CUSA03220 with update
 1.69, and the system modules and fonts from your own PS4 firmware.
@@ -85,7 +85,7 @@ libs\  RyGTS runtime libraries (kernel, libc, save data, audio, input, ...)
   installed separately (not in the releases).
 - **GT Sport guide** ([docs/gt-sport](docs/gt-sport)): setup from your own dump.
 
-The renderer lives in [shadGT, branch `ryty-gpu`](https://gitlab.com/rygt-team/shadGT)
+The renderer lives in [shadGT, branch `ryty-gpu`](https://github.com/rygt-team/shadGT/tree/ryty-gpu)
 (`ryty_gpu/`). It builds shadGT's video output, Gnm driver and Vulkan renderer as
 `libSceVideoOut.prx`, plus shadGT's audio, NP and other libraries for RyGTS. It carries the GT
 Sport rendering fixes and the performance work (Vulkan calls on their own thread, cheaper buffer
@@ -93,7 +93,7 @@ and image tracking).
 
 ## Building
 
-Most people should use a [release](https://github.com/mlgprorektm8/RyGT/releases). To build it
+Most people should use a [release](https://github.com/RyGT-Team/RyGTS/releases). To build it
 yourself on Windows you need:
 
 | What | Why | Where |
