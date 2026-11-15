@@ -2477,7 +2477,8 @@ namespace RyGT
         }
 
         /// FEAT-GTS-272: the update channel (Launcher.update_channel): stable (the newest release), prerelease
-        /// (the newest release or pre-release) or nightly (the newest build of development). Nightly by default.
+        /// (the newest release or pre-release) or nightly (the newest build of development). Stable by default
+        /// (FIX-GTS-286: RyGTS publishes releases on GitHub now; it was nightly while there were none).
         string UpdateChannel()
         {
             try
@@ -2485,9 +2486,9 @@ namespace RyGT
                 object section, value;
                 var launcher = LoadConfig().TryGetValue("Launcher", out section) ? section as Dictionary<string, object> : null;
                 string channel = launcher != null && launcher.TryGetValue("update_channel", out value) ? value as string : null;
-                return Array.IndexOf(Updater.Channels, channel) >= 0 ? channel : Updater.Nightly;
+                return Array.IndexOf(Updater.Channels, channel) >= 0 ? channel : Updater.Stable;
             }
-            catch { return Updater.Nightly; }
+            catch { return Updater.Stable; }
         }
 
         static string ChannelName(string channel)
@@ -2519,7 +2520,7 @@ namespace RyGT
         void ShowUpdate(string installed, string channel, ReleaseInfo latest, Exception error, bool manual)
         {
             if (channel != UpdateChannel()) return; // the channel changed meanwhile; that check shows its own
-            if (latest != null && Updater.IsNewer(latest.Version, installed))
+            if (latest != null && Updater.IsNewer(latest, installed, root)) // FIX-GTS-286: not the same build again
             {
                 pendingUpdate = latest;
                 home.Notice = (latest.Artifact ? "A newer RyGTS nightly is available: " + Updater.Display(latest.Version)
