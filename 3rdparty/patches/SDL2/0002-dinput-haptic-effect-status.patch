@@ -1,0 +1,21 @@
+From: RyGT-Team
+Subject: [PATCH] dinput haptic: an effect is running while DIEGES_PLAYING is set
+
+SDL_DINPUT_HapticGetEffectStatus treated any nonzero status as playing. GetEffectStatus
+can also report DIEGES_EMULATED, so an emulated effect that had stopped still counted as
+playing. Only DIEGES_PLAYING means it is running (from ryGT7's SDL2 DirectInput patch;
+merged with RyGTS's 0001 in FEAT-GTS-291).
+---
+diff --git a/src/haptic/windows/SDL_dinputhaptic.c b/src/haptic/windows/SDL_dinputhaptic.c
+index 9caf2cc2d..e7ea21eef 100644
+--- a/src/haptic/windows/SDL_dinputhaptic.c
++++ b/src/haptic/windows/SDL_dinputhaptic.c
+@@ -1082,7 +1082,7 @@ int SDL_DINPUT_HapticGetEffectStatus(SDL_Haptic *haptic, struct haptic_effect *e
+         return DI_SetError("Getting effect status", ret);
+     }
+ 
+-    if (status == 0) {
++    if (!(status & DIEGES_PLAYING)) {
+         return SDL_FALSE;
+     }
+     return SDL_TRUE;
