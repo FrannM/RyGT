@@ -1,6 +1,6 @@
-﻿// FEAT-GTS-433: custom environment variables for GTSport.exe (FEAT-GTS-290: or GT7.exe, in RyGT7.ini), set in the launcher instead of a shell
+﻿// FEAT-GTS-433: custom environment variables for GTSport.exe (FEAT-GTS-290: or GT7.exe), set in the launcher instead of a shell
 // (SHADGT_SO_CACHE, SHADGT_SO_HASH_MASK and the other renderer and runtime switches).
-// Saved in RyGT.ini as "env=<1|0>|NAME=VALUE" lines; enabled rows are applied last when the game starts.
+// Saved in the game's <TitleId>.RyGT.ini (FEAT-GTS-291) as "env=<1|0>|NAME=VALUE" lines; enabled rows are applied last when the game starts.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -29,7 +29,7 @@ namespace RyGT
             return true;
         }
 
-        /// The part after "env=" in RyGT.ini, or null if it is not a valid entry.
+        /// The part after "env=" in <TitleId>.RyGT.ini, or null if it is not a valid entry.
         public static EnvVar Parse(string text)
         {
             if (text == null || text.Length < 3 || text[1] != '|') return null;

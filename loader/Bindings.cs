@@ -321,7 +321,7 @@ namespace RyGT
         {
             string keyboardTarget = keyboardPlayer > 1 ? ":" + keyboardPlayer : "";
             var text = new StringBuilder();
-            text.AppendLine("# Made by RyGT7.exe (Controls). Lines it does not manage are kept at the end.");
+            text.AppendLine("# Made by RyGT Launcher (Controls). Lines it does not manage are kept at the end.");
             text.AppendLine();
             text.AppendLine("# Keyboard bindings" + (keyboardPlayer > 1 ? " (player " + keyboardPlayer + ")" : ""));
             foreach (var row in Rows)

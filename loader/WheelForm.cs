@@ -97,7 +97,7 @@ namespace RyGT
             probePath = Path.Combine(root, "tools", "ryty-wheel-probe.exe");
             if (!File.Exists(probePath)) probePath = Path.Combine(root, "ryty-wheel-probe.exe");
 
-            Text = "RyGTS - Steering wheel";
+            Text = "RyGT Launcher - Steering wheel";
             Font = new Font("Segoe UI", 9f);
             StartPosition = FormStartPosition.CenterParent;
             ClientSize = new Size(800, 840);
@@ -566,13 +566,14 @@ namespace RyGT
                     ActionOf(line, out source);
                     if (IsJoystickSource(source)) continue;
                     if (line.Trim() == "# Racing wheel (written by the RyGT launcher)" ||
-                        line.Trim() == "# Racing wheel (written by the RyGTS launcher)") continue;
+                        line.Trim() == "# Racing wheel (written by the RyGTS launcher)" ||
+                        line.Trim() == "# Racing wheel (written by RyGT Launcher)") continue;
                     kept.Add(line);
                 }
             }
             while (kept.Count > 0 && kept[kept.Count - 1].Trim().Length == 0) kept.RemoveAt(kept.Count - 1);
             if (kept.Count > 0) kept.Add("");
-            kept.Add("# Racing wheel (written by the RyGTS launcher)");
+            kept.Add("# Racing wheel (written by RyGT Launcher)");
             foreach (var row in Rows)
             {
                 if (row.Source == null) continue;

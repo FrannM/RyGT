@@ -1,10 +1,43 @@
-# RyGTS launcher changelog
+# RyGT Launcher changelog
 
-The launcher (RyGTS.exe) is versioned on its own with semantic versioning
+The launcher (RyGTLauncher.exe, called RyGTS.exe before 0.3.1) is versioned on its own with semantic versioning
 (MAJOR.MINOR.PATCH), separately from the game, emulator and release packages.
 The version lives in `loader/Version.cs`. To release a change, bump
 `LauncherVersion.Value` there and add a section here with the same number;
 CI fails when the two disagree.
+
+## 0.3.1 - 2026-11-15
+
+* FEAT-GTS-291: The launcher is RyGT Launcher, RyGTLauncher.exe, for both games: the window title
+  ("RyGT Launcher - Gran Turismo Sport", "RyGT Launcher - Gran Turismo 7"), the start screen's version
+  line, Settings > About and the exe's version information name it. The releases keep their names:
+  RyGTS (GT Sport's) and ryGT7 (GT7's). Both packages ship RyGTLauncher.exe instead of RyGTS.exe and
+  RyGT7.exe.
+* FEAT-GTS-291: Both games may share ONE folder (GTSport.exe and GT7.exe side by side): every name a game
+  writes there follows its serial (CUSA03220 GT Sport, CUSA24769 GT7). The settings file is
+  `<serial>.RyGT.ini` (CUSA03220.RyGT.ini, CUSA24769.RyGT.ini), read by the launcher and the runtime; GT7's
+  RyGT7.ini and the RyGT.ini it mirrored into (with online play's keys) become one CUSA24769.RyGT.ini.
+  Set up works in `convert\<serial>`, the game's /temp0 and /data are `temp0\<serial>` and `data\<serial>`
+  (GT7's offline catalog `data\CUSA24769\gt7offline`), and the launcher's setup lines go to
+  `logs\<serial>\setup.log`, no longer setup.log in the folder. At start and before Set up and Play the
+  launcher moves a folder's old names (libc does the same at load for a game started directly), only
+  where they are clearly the game's: RyGT.ini is renamed, GT7's two files merged and kept as
+  `.moved-<date>`, folders moved into `<name>\<serial>` in three steps that a later start finishes if cut
+  short. Nothing is deleted or overwritten; each step is in the setup log. Both packages ship the same
+  libs\libSceMbus.prx. GT Sport may use a ryGT7 folder, and GT7's folder may be GT Sport's.
+* FEAT-GTS-291: A folder updated by an older launcher still holds RyGTS.exe or RyGT7.exe. At start,
+  RyGTLauncher.exe renames an older launcher in its own folder to RyGTS.exe.old or RyGT7.exe.old, only
+  when the file's version information names the old launcher (product RyGTS or ryGT7); GTSport.exe,
+  GT7.exe and other files are never touched. Players keep one launcher, and a shortcut to the old name
+  fails instead of starting an outdated launcher: point it at RyGTLauncher.exe. A failed rename is
+  written to the setup log and nothing else changes. Rolling back to a release from before
+  RyGTLauncher.exe puts the old launcher back and starts it.
+* FEAT-GTS-291: One updater for both games. GT7 uses the same updater as GT Sport (RyGT-Team/RyGTS
+  releases on GitHub, Stable, Prerelease and Nightly channels, Changelog, roll back), with one Updates
+  section in Settings > About; ryGT7's GitLab updater is gone. It updates the selected game's folder,
+  and only from a package that has that game's files (GT Sport's CUSA03220.json, GT7's CUSA24769.xml),
+  so one game's runtime is never installed over the other's. A ryGT7 folder from GitLab is shown with
+  its version but isn't updated until a RyGTS package for GT7 is installed in it.
 
 ## 0.3.0 - 2026-11-15
 

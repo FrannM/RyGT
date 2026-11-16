@@ -1,7 +1,7 @@
 ﻿// FEAT-GTS-437: the Advanced page. The experimental renderer and runtime switches (RYGT_* and SHADGT_* environment
 // variables read by shadGT and RyGTS) as one table with a description on hover, and a table for any
-// other variable. All of them are saved in RyGT.ini as env= lines and set for GTSport.exe when the
-// launcher starts it (CustomEnvironment.Apply). FEAT-GTS-290: GT7's page is the same, in RyGT7.ini for GT7.exe.
+// other variable. All of them are saved in CUSA03220.RyGT.ini as env= lines and set for GTSport.exe when the
+// launcher starts it (CustomEnvironment.Apply). FEAT-GTS-290: GT7's page is the same, in CUSA24769.RyGT.ini for GT7.exe.
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -495,7 +495,7 @@ namespace RyGT
 
         static readonly Color BoxFill = Color.FromArgb(54, 54, 54), BoxEdge = Color.FromArgb(78, 78, 78);
 
-        /// Builds the page into `page`. `env` is the saved list (RyGT.ini env= lines); `save` gets the
+        /// Builds the page into `page`. `env` is the saved list (<TitleId>.RyGT.ini env= lines); `save` gets the
         /// new full list after every change.
         /// FEAT-GTS-467: what Refresh keeps of the page while it reads the renderer again.
         sealed class ViewState

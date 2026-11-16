@@ -1,6 +1,6 @@
 // ryGT7 launcher: online play. GT7's own servers are replaced by ones a player hosts on their PC
 // (RyGTServer for GT7's online service, "Vegas", and its rooms; shadNet for PSN sign-in, both in
-// server\ next to RyGT7.exe), and friends join with an invite code. Room races are peer to peer:
+// server\ in the ryGT7 folder), and friends join with an invite code. Room races are peer to peer:
 // every player's game talks straight to the others on port 3658.
 // SPDX-License-Identifier: GPL-2.0-only
 
@@ -21,7 +21,7 @@ using System.Windows.Forms;
 
 namespace RyGT
 {
-    /// Online play's files and settings: RyGT.ini (online, online_id, online_server, online_address,
+    /// Online play's files and settings: GT7's CUSA24769.RyGT.ini (online, online_id, online_server, online_address,
     /// game_log, read by ryGT7's network libraries), user\users.json (the shadNet account player 1
     /// signs in with) and the shadNet server address in GT7's config.
     static class OnlinePlay
@@ -53,7 +53,8 @@ namespace RyGT
             }
         }
 
-        static string IniPath(string root) { return Path.Combine(root, "RyGT.ini"); }
+        // FEAT-GTS-291: GT7's own settings file (it was RyGT.ini, the runtime's copy beside RyGT7.ini).
+        static string IniPath(string root) { return GameInfo.GT7.IniPath(root); }
 
         public static Dictionary<string, string> ReadIni(string root)
         {
@@ -67,7 +68,7 @@ namespace RyGT
             return values;
         }
 
-        /// Sets keys in RyGT.ini (a null value removes the key), keeping every other line.
+        /// Sets keys in CUSA24769.RyGT.ini (a null value removes the key), keeping every other line.
         public static void WriteIni(string root, IDictionary<string, string> changes)
         {
             var lines = File.Exists(IniPath(root)) ? File.ReadAllLines(IniPath(root)).ToList() : new List<string>();
@@ -191,7 +192,7 @@ namespace RyGT
             return found;
         }
 
-        /// What says this PC owns its online IDs on the servers it joins (kept in RyGT.ini).
+        /// What says this PC owns its online IDs on the servers it joins (kept in CUSA24769.RyGT.ini).
         public static string Secret(string root)
         {
             string secret = Get(ReadIni(root), "online_secret");
@@ -407,7 +408,7 @@ namespace RyGT
             }
         }
 
-        /// Whether a ryGT7 account is signed in (account_key and account_pass in RyGT.ini).
+        /// Whether a ryGT7 account is signed in (account_key and account_pass in CUSA24769.RyGT.ini).
         public static bool SignedIn(string root)
         {
             var ini = ReadIni(root);
@@ -575,7 +576,7 @@ namespace RyGT
 
             // Play.
             var play = Section(page, "Play");
-            // The Online play switch (RyGT.ini's online): the home page's Play follows it.
+            // The Online play switch (CUSA24769.RyGT.ini's online): the home page's Play follows it.
             onlineSwitch = new ToggleRow { Text = "Online play", Checked = OnlinePlay.Enabled(root) };
             onlineSwitch.CheckedChanged += delegate
             {
@@ -752,7 +753,7 @@ namespace RyGT
             }
         }
 
-        /// RyGT.ini's online settings. game_log=1 turns on the GT7 hooks that also sign GT7 in to
+        /// CUSA24769.RyGT.ini's online settings. game_log=1 turns on the GT7 hooks that also sign GT7 in to
         /// the server; online_address is this PC's address for other players (a VPN address);
         /// without it the game uses the one on its route to the server.
         void UseServer(string id, string server, string ownAddress)
@@ -771,7 +772,7 @@ namespace RyGT
             string shadnetExe = Path.Combine(ShadNetFolder, "shadnet.exe"), serverExe = Path.Combine(ServerFolder, "RyGTServer.exe");
             if (!File.Exists(shadnetExe) || !File.Exists(serverExe))
             {
-                MessageBox.Show(this, "Hosting needs server\\RyGTServer.exe and server\\shadnet\\shadnet.exe next to RyGT7.exe.");
+                MessageBox.Show(this, "Hosting needs server\\RyGTServer.exe and server\\shadnet\\shadnet.exe in the ryGT7 folder.");
                 return;
             }
             // A VPN address is this PC's address for the other players too; an internet or LAN one
@@ -1061,7 +1062,7 @@ namespace RyGT
             }
         }
 
-        /// community.txt next to RyGT7.exe holds the invite code of a shared server: players then
+        /// community.txt in the ryGT7 folder holds the invite code of a shared server: players then
         /// only pick a name. Without the file the window offers joining and hosting.
         string CommunityCode
         {

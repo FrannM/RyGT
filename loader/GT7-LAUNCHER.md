@@ -6,7 +6,7 @@ It uses Windows' .NET Framework 4.x and does not require Python for setup or pla
 ## Player setup
 
 1. Extract the complete ryGT7 release to a writable folder, separate from the source game folders.
-2. Run `RyGT7.exe`.
+2. Run `RyGTLauncher.exe`.
 3. Select your decrypted **Gran Turismo 7 base game, CUSA24769**. Select the folder containing
    `eboot.bin`, `sce_sys/param.sfo`, `sce_module`, and `contents` with `gt.idx` and the `gt*.vol` archives.
 4. If your update is already merged into that folder, leave **Update** empty. Otherwise select the
@@ -40,7 +40,7 @@ ps-patch-system XML of Proper Offline Patch v1.0 for CUSA24769. Releases include
 `patches\CUSA24769.xml`, so Set up applies it automatically without a separate download or copy.
 Its source and retained credits are in `patches\README.md`. Set up reads only its `Offline mode` group
 (589 `bytes` lines), never the file's other groups such as DLC unlocks or debug settings.
-Set up records the SHA-256 of the file it built `GT7.exe` with in `convert\offline-patch.txt`; when
+Set up records the SHA-256 of the file it built `GT7.exe` with in `convert\CUSA24769\offline-patch.txt`; when
 the file is added, changed or removed afterwards, Play runs Set up again before starting the game
 (adding the file alone changed nothing, and the dealerships kept saying "Failed to get sales list").
 
@@ -62,16 +62,20 @@ extraction, opening-movie patch, widescreen camera patch, wet-reflection toggle,
 and old-renderer selection are removed. The inactive splash-screen precompile control is also
 omitted for this renderer build. GT7 uses the native renderer and precise readbacks.
 
-Paths are stored locally in `RyGT7.ini`. Logs, shaders, converted output, and saves stay in the
-launcher folder. The log threshold is also mirrored to `RyGT.ini` for existing runtime libraries.
-The current renderer internally uses `user/custom_configs/CUSA03220.json` as its
-configuration alias; this is unrelated to the required game title ID.
+Paths are stored locally in `CUSA24769.RyGT.ini` (FEAT-GTS-291; `RyGT7.ini` and the `RyGT.ini` it was mirrored
+into are merged into it), which the runtime reads too. Logs, shaders, converted output (`convert\CUSA24769`) and
+saves stay in the game's folder, each under GT7's serial, so GT Sport may share the folder.
+GT7's settings are `user/custom_configs/CUSA24769.json`, its shader files `shaders/CUSA24769*` and its
+saves `user/savedata/CUSA24769/` (GAME-004/004). The launcher renames a folder's older `CUSA03220.json`
+and `shaders/CUSA03220*` (never over a newer file), and the runtime moves its old `_sd` and `download0`
+into `user/savedata/CUSA24769/` at the first start (copied and checked, the old folder kept as
+`_sd.moved-<date>`; see `core/libs/prx/libc/include/SaveLayout.hpp`).
 
 ## Online
 
 The **Account** page holds the online account: your online ID, joining a friend's server with their invite code, hosting your own, and signing out. Nothing asks for an account at start; Online on Play without one points to it. The **Online** page hosts GT7's online service on this PC (code in `Online.cs`).
 
-At start the launcher asks GitLab for the newest rygt-team/rygt7 release (in the background; the "Check for updates" box in Settings > Display turns it off). A newer one shows a notice and an **Update** button at the top right of the home view: it downloads the release zip, checks its SHA-256 (from the release notes) and every file against the package's manifest.json, moves the files it replaces to `update\backup-<old version>` and copies the new ones in, then restarts. Only files the package lists are written; `user\`, `shaders\`, the converted game and the .ini files never are. Settings > Display can roll the last update back (code in `Updater.cs`).
+FEAT-GTS-291: GT7 has the same updater as GT Sport (`Updater.cs`, RyGT-Team/RyGTS releases on GitHub; ryGT7's GitLab updater is gone). Settings > About > Updates has the check at start, the Stable, Prerelease and Nightly channels, Check now and Roll back. A newer build shows a notice and an **Update** button on the home view; it downloads the package, checks its SHA-256 and every file against the package's list, moves the files it replaces to `update\backup-<old version>`, copies the new ones in and restarts RyGTLauncher.exe. Only a package with GT7's files (`patches\CUSA24769.xml`) updates a ryGT7 folder; `user\`, `shaders\`, the converted game and the .ini files are never written. A ryGT7 folder from a GitLab release can't be updated this way until a RyGTS package for GT7 is published and installed in it.
 
 - **Host:** with the online ID from the Account page, pick the address friends reach you at, then **Start hosting**. It starts
   `server\shadnet\shadnet.exe` (PSN sign-in) and `server\RyGTServer.exe` (GT7's online service and
@@ -83,13 +87,13 @@ At start the launcher asks GitLab for the newest rygt-team/rygt7 release (in the
 - **Play online** sets `online=1` and starts the game; **Allow through firewall** adds Windows Firewall
   rules for `GT7.exe` (players' games connect to each other on port 3658) and the server ports.
 
-The settings go into `RyGT.ini` (`online`, `online_id`, `online_server`, `online_address`,
+The settings go into `CUSA24769.RyGT.ini` (`online`, `online_id`, `online_server`, `online_address`,
 `game_log=1`, which also turns on the hook that signs GT7 in), `user\users.json` (player 1's shadNet
 account) and the shadNet addresses in the game's config. See [the server README](../server/README.md#gt7).
 
 ## Build and check
 
-Run `build.cmd <output-folder>` from a Windows command prompt. It builds `RyGT7.exe` using the
+Run `build.cmd <output-folder>` from a Windows command prompt. It builds `RyGTLauncher.exe` using the
 C# compiler included with .NET Framework; it does not copy runtime libraries or game files.
 
 Run `test-gt7.cmd <temporary-output-folder>` for synthetic setup regression checks. Optionally
@@ -98,7 +102,7 @@ to verify the conversion fix byte for byte. Or verify the Offline mode patch byt
 `--offline <patch XML> <ELF after the conversion fix> <expected extended ELF> <GT7.exe converted from it> <expected patched GT7.exe>`.
 The tests retain their temporary fixtures for inspection.
 
-`RyGT7.exe --snapshot <output.png> home` renders the Home page; `settings` and `controls` select
-the other pages. `RyGT7.exe --setup` performs setup using the paths in `RyGT7.ini`.
+`RyGTLauncher.exe --snapshot <output.png> home --game gt7` renders the Home page; `settings` and `controls` select
+the other pages. `RyGTLauncher.exe --setup --game gt7` performs setup using the paths in `CUSA24769.RyGT.ini`.
 
 GPL-2.0-only, retaining the upstream launcher license.

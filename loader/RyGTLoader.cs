@@ -17,8 +17,8 @@ using System.Windows.Forms;
 
 [assembly: System.Reflection.AssemblyCompany("RyGT-Team")]
 [assembly: System.Reflection.AssemblyCopyright("Copyright © 2026 RyGT-Team")]
-[assembly: System.Reflection.AssemblyProduct("RyGTS")]
-[assembly: System.Reflection.AssemblyTitle("RyGTS Launcher")]
+[assembly: System.Reflection.AssemblyProduct("RyGT Launcher")]
+[assembly: System.Reflection.AssemblyTitle("RyGT Launcher")]
 [assembly: System.Reflection.AssemblyDescription("Gran Turismo Sport and Gran Turismo 7 launcher for Windows")]
 
 namespace RyGT
@@ -1110,7 +1110,13 @@ namespace RyGT
                 fadeFrom = Environment.TickCount;
             }
             Compose();
-            Invalidate(true);
+            // The view and the controls drawn over its picture (Play, the gear, the update button) follow
+            // each frame. The game list does not: it paints in two steps (Windows' box, then its dark frame),
+            // so repainting it 30 times a second flickered; only its corners show the picture, and those
+            // are repainted with it on its own events and when the game is switched (Invalidate(true)).
+            Invalidate(false);
+            foreach (Control child in Controls)
+                if (child != GameChooser) child.Invalidate(true);
         }
 
         Bitmap Scaled(int index)
@@ -1505,7 +1511,7 @@ namespace RyGT
         }
     }
 
-    /// Finishes the converted GTSport.exe: the launcher's icon (RyGTS.exe's embedded copy of ryGT.ico),
+    /// Finishes the converted GTSport.exe: the launcher's icon (RyGTLauncher.exe's embedded copy of ryGT.ico),
     /// so Explorer and shortcuts show the game's art instead of a blank program icon, and the Windows
     /// (GUI) subsystem, so a double-click opens only the game window, without a console.
     static class GameExe
@@ -1548,7 +1554,7 @@ namespace RyGT
         /// the one in app0 beside the executable) instead of the launcher's.
         public static void PrepareGt7(string exe, string iconPath = null)
         {
-            if (iconPath == null) iconPath = Path.Combine(Path.GetDirectoryName(exe), "app0", "sce_sys", "icon0.png");
+            if (iconPath == null) iconPath = Path.Combine(App0Layout.Top(Path.GetDirectoryName(exe), GameInfo.GT7.TitleId), "sce_sys", "icon0.png");
             if (!Wine.Detected && File.Exists(iconPath) && !HasIcon(exe)) ApplyIcon(exe, IconFromPng(iconPath));
             if (ReadSubsystem(exe) != GuiSubsystem) WriteSubsystem(exe, GuiSubsystem);
         }
@@ -1557,7 +1563,7 @@ namespace RyGT
         {
             using (var stream = typeof(GameExe).Assembly.GetManifestResourceStream("ryGT.ico"))
             {
-                if (stream == null) throw new Exception("RyGTS.exe has no embedded icon.");
+                if (stream == null) throw new Exception("RyGTLauncher.exe has no embedded icon.");
                 var ico = new byte[stream.Length];
                 stream.Read(ico, 0, ico.Length);
                 return ico;
@@ -1597,7 +1603,7 @@ namespace RyGT
             if (HasResource(exe, RtVersion) &&
                 !String.Equals(FileVersionInfo.GetVersionInfo(exe).CompanyName, "RyGT", StringComparison.Ordinal)) return;
             byte[] data = VersionInfo(new[] {
-                new[] { "CompanyName", "RyGTS" },
+                new[] { "CompanyName", "RyGT Launcher" },
                 new[] { "FileDescription", "Gran Turismo Sport" },
                 new[] { "FileVersion", "1.69" },
                 new[] { "InternalName", "GTSport" },
@@ -1780,7 +1786,11 @@ namespace RyGT
                     string output = process.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();
                     if (!process.WaitForExit(30000)) return;
                     if (process.ExitCode == 0) File.WriteAllText(marker, exe);
-                    File.AppendAllText(Path.Combine(root, "logs", "setup.log"),
+                    // The game whose exe this is: its logs\<serial> folder.
+                    string serial = GameInfo.Of(string.Equals(Path.GetFileName(exe), GameInfo.Of(GameKind.GT7).ExeName,
+                                                              StringComparison.OrdinalIgnoreCase) ? GameKind.GT7 : GameKind.GTSport).TitleId;
+                    Directory.CreateDirectory(LogFiles.Folder(root, serial));
+                    File.AppendAllText(Path.Combine(LogFiles.Folder(root, serial), "setup.log"),
                                        "AMD Software game list: " + output.Trim() + Environment.NewLine);
                 }
             }
@@ -1965,49 +1975,42 @@ namespace RyGT
             }
         }
 
-        /// FEAT-GTS-290: GT Sport's RyGT.ini and ryGT7's RyGT7.ini are both this format, each in its game's
-        /// folder, and each is written as its own launcher wrote it: RyGT7.ini has no hdd_streaming or
-        /// prompt_obsolete line, and mirrors the runtime's values into RyGT.ini beside it.
-        public bool IsGt7 { get { return string.Equals(Path.GetFileName(path), "RyGT7.ini", StringComparison.OrdinalIgnoreCase); } }
+        /// FEAT-GTS-291: each game's settings are <TitleId>.RyGT.ini in its folder (CUSA03220.RyGT.ini for GT
+        /// Sport, CUSA24769.RyGT.ini for GT7, where GT Sport had RyGT.ini and GT7 RyGT7.ini plus a RyGT.ini the
+        /// runtime read; SharedNames). The runtime reads the same file (game=, update=, stdout_level=), so
+        /// GT7's values are no longer mirrored into another one. GT7's has no hdd_streaming or
+        /// prompt_obsolete line, as ryGT7's launcher wrote it.
+        public bool IsGt7 { get { return path != null && Path.GetFileName(path).StartsWith(GameInfo.GT7.TitleId, StringComparison.OrdinalIgnoreCase); } }
 
+        static readonly string[] OwnKeys = { "game", "update", "modules", "fonts", "stdout_level", "hdd_streaming", "show_advanced", "prompt_obsolete", "env" };
+
+        /// Writes this class's lines, then every other line of the file as it was (online play's keys, which
+        /// OnlinePlay keeps in the same file, and anything else).
         public void Save()
         {
             if (path == null) return;
-            if (IsGt7) { SaveGt7(); return; }
-            var lines = new List<string> { "game=" + Game, "update=" + Update, "modules=" + Modules, "fonts=" + Fonts, "stdout_level=" + StdoutLevel, "hdd_streaming=" + (HddStreaming ? "1" : "0"), "show_advanced=" + (ShowAdvanced ? "1" : "0"), "prompt_obsolete=" + (PromptObsolete ? "1" : "0") };
+            var lines = new List<string> { "game=" + Game, "update=" + Update, "modules=" + Modules, "fonts=" + Fonts, "stdout_level=" + StdoutLevel };
+            if (!IsGt7) lines.Add("hdd_streaming=" + (HddStreaming ? "1" : "0"));
+            lines.Add("show_advanced=" + (ShowAdvanced ? "1" : "0"));
+            if (!IsGt7) lines.Add("prompt_obsolete=" + (PromptObsolete ? "1" : "0"));
             foreach (var entry in Env) lines.Add("env=" + CustomEnvironment.Format(entry));
+            if (File.Exists(path))
+                foreach (var line in File.ReadAllLines(path))
+                {
+                    int eq = line.IndexOf('=');
+                    if (eq > 0 && OwnKeys.Contains(line.Substring(0, eq).Trim())) continue;
+                    if (line.Trim().Length == 0) continue;
+                    lines.Add(line);
+                }
             File.WriteAllLines(path, lines);
-        }
-
-        void SaveGt7()
-        {
-            var own = new List<string> { "game=" + Game, "update=" + Update, "modules=" + Modules, "fonts=" + Fonts, "stdout_level=" + StdoutLevel,
-                                         "show_advanced=" + (ShowAdvanced ? "1" : "0") };
-            foreach (var entry in Env) own.Add("env=" + CustomEnvironment.Format(entry));
-            File.WriteAllLines(path, own);
-            // The runtime libraries read their log threshold, and (FEAT-GTS-251) the game and update
-            // folders that /app0 is read from, from this compatibility file.
-            string runtimeIni = Path.Combine(Path.GetDirectoryName(path), "RyGT.ini");
-            var lines = File.Exists(runtimeIni) ? File.ReadAllLines(runtimeIni).ToList() : new List<string>();
-            lines.RemoveAll(line =>
-            {
-                string key = line.TrimStart();
-                return key.StartsWith("stdout_level=", StringComparison.OrdinalIgnoreCase) ||
-                       key.StartsWith("game=", StringComparison.OrdinalIgnoreCase) ||
-                       key.StartsWith("update=", StringComparison.OrdinalIgnoreCase);
-            });
-            lines.Add("stdout_level=" + StdoutLevel);
-            lines.Add("game=" + Game);
-            lines.Add("update=" + Update);
-            File.WriteAllLines(runtimeIni, lines);
         }
     }
 
     partial class LoaderForm : Form, IBackdrop
     {
-        // FEAT-GTS-290: one launcher for GT Sport and GT7. Each game keeps its own folder (its exe, runtime,
-        // RyGT.ini or RyGT7.ini, config, logs and shaders), so `root` and `settings` are the selected
-        // game's. The settings pages are built for the selected game and built again when it changes.
+        // FEAT-GTS-290: one launcher for GT Sport and GT7. Each game has its folder (its exe, runtime,
+        // <TitleId>.RyGT.ini, config, logs and shaders; FEAT-GTS-291: both may be one folder), so `root` and
+        // `settings` are the selected game's. The settings pages are built for the selected game and built again when it changes.
         readonly string launcherRoot = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
         readonly LauncherState state;
         GameKind target;
@@ -2017,7 +2020,7 @@ namespace RyGT
         /// The selected game's folder (its GTSport.exe or GT7.exe and everything Set up makes).
         string root { get { return state.RootOf(target); } }
 
-        /// The selected game's RyGT.ini (GT Sport) or RyGT7.ini (GT7).
+        /// The selected game's <TitleId>.RyGT.ini (CUSA03220.RyGT.ini for GT Sport, CUSA24769.RyGT.ini for GT7).
         Settings settings { get { return SettingsOf(target); } }
 
         Settings SettingsOf(GameKind game)
@@ -2052,7 +2055,6 @@ namespace RyGT
         readonly GlowButton updateButton; // FEAT-GTS-272
         readonly GlowButton changelogButton; // FIX-GTS-286
         ReleaseInfo pendingUpdate;
-        Gt7ReleaseInfo pendingGt7Update;
         readonly Panel settingsView, pagesHost, sidebar;
         readonly Label sideVersion;
         readonly Curtain curtain;
@@ -2083,6 +2085,7 @@ namespace RyGT
                 if (folder != null) state.SetRoot(game.Value, folder);
             }
             target = state.Last;
+            MigrateGt7Serial(); // GAME-004, FEAT-GTS-291: before anything reads either game's settings
             SetAccent(info.Accent, info.AccentHover, info.AccentText);
             Font = new Font("Segoe UI", 9.5f);
             ClientSize = new Size(1280, 760);
@@ -2117,7 +2120,7 @@ namespace RyGT
             home.Controls.Add(gameChooser);
             // FEAT-GTS-272: the update button, shown when a newer build is found; leftovers of an update go.
             if (RootReady(GameKind.GTSport)) Updater.CleanUp(state.RootOf(GameKind.GTSport));
-            if (RootReady(GameKind.GT7)) Gt7Updater.CleanUp(state.RootOf(GameKind.GT7));
+            if (RootReady(GameKind.GT7)) Updater.CleanUp(state.RootOf(GameKind.GT7));
             updateButton = new GlowButton { Text = "Update", Size = new Size(230, 40), Font = Dark.Caps(10f), Visible = false };
             updateButton.Click += delegate { InstallUpdate(); };
             home.UpdateButton = updateButton;
@@ -2193,6 +2196,7 @@ namespace RyGT
             CommitPaths();
             target = game;
             state.Last = game;
+            MigrateGt7Serial(); // GAME-004, FEAT-GTS-291
             try { state.Save(); } catch { }
             setupLogPath = null;
             logCarry = "";
@@ -2208,6 +2212,38 @@ namespace RyGT
             RefreshState();
             if (game == GameKind.GTSport && !obsoleteAsked) BeginInvoke((MethodInvoker)PromptObsoleteSettings);
             if (RootReady(game) && ReadSetting("Launcher", "check_updates", true)) CheckForUpdate(false);
+        }
+
+        /// GAME-004: renames GT7's files from GT Sport's serial to its own in GT7's folder
+        /// (SerialMigration), each move in that folder's setup log. Safe to call often: once done it finds
+        /// nothing to rename. GT Sport's folder is never touched.
+        void MigrateGt7Serial()
+        {
+            if (RootReady(GameKind.GT7)) LogFor(GameKind.GT7, SerialMigration.MigrateGt7(state.RootOf(GameKind.GT7)));
+            // FEAT-GTS-291: and both games' settings file, convert, temp0 and data take their serial
+            // (SharedNames), before anything reads the settings.
+            MigrateSharedNames(GameKind.GTSport);
+            MigrateSharedNames(GameKind.GT7);
+        }
+
+        /// FEAT-GTS-291: moves a game's old shared names in its folder (SharedNames.Migrate), each step in its
+        /// setup log. Once done it finds nothing to do.
+        void MigrateSharedNames(GameKind game)
+        {
+            if (!RootReady(game)) return;
+            List<string> notes;
+            try { notes = SharedNames.Migrate(state.RootOf(game), GameInfo.Of(game)); }
+            catch (Exception e) { notes = new List<string> { "Could not give the settings file and folders their serial names: " + e.Message }; }
+            LogFor(game, notes);
+        }
+
+        /// Lines for a game's setup log: the log view's while it is the selected game, else appended to its
+        /// logs\<TitleId>\setup.log.
+        void LogFor(GameKind game, List<string> notes)
+        {
+            if (notes.Count == 0) return;
+            if (target == game) { foreach (string note in notes) Log(note); return; }
+            AppendSetupLog(state.RootOf(game), GameInfo.Of(game).TitleId, notes.ToArray());
         }
 
         public void SelectGame(GameKind game)
@@ -2285,13 +2321,14 @@ namespace RyGT
             }
             if (icon != null) Icon = icon;
             home.Accent = info.TitleAccent;
-            home.Logo = ready ? LoadLogo() : null;
+            home.Logo = LoadLogo(); // the game folder's, else the RY logo built into RyGTLauncher.exe
             home.Player = "";
             home.PlayerLogo = null;
             if (target == GameKind.GT7)
             {
                 home.Caption = Dark.Spaced("CUSA24769   " + (char)183 + "   PS4   " + (char)183 + "   RYGT7 FOR WINDOWS");
-                home.Version = "ryGT7 " + ((ready ? Gt7Updater.InstalledVersion(root) : null) ?? "") + "  " + (char)183 + "  launcher " + LauncherVersion.Value +
+                string release = ready ? Updater.ReleaseVersion(root) : null;
+                home.Version = "RyGT Launcher " + LauncherVersion.Value + "  " + (char)183 + "  ryGT7" + (release == null ? "" : " " + Updater.Display(release)) +
                                "  " + (char)183 + "  GT7 " + (char)183 + " CUSA24769";
                 try { home.PlayerLogo = Icon.ToBitmap(); } catch { }
             }
@@ -2299,7 +2336,7 @@ namespace RyGT
             {
                 string installed = ready ? Updater.InstalledVersion(root) : null;
                 home.Caption = Dark.Spaced("CUSA03220   " + (char)183 + "   UPDATE 1.69   " + (char)183 + "   RYGTS FOR WINDOWS");
-                home.Version = "RyGTS " + LauncherVersion.Value + (installed == null ? "" : " (" + Updater.Display(installed) + ")") +
+                home.Version = "RyGT Launcher " + LauncherVersion.Value + "  " + (char)183 + "  RyGTS" + (installed == null ? "" : " " + Updater.Display(installed)) +
                                "  " + (char)183 + "  GT Sport 1.69 " + (char)183 + " CUSA03220";
             }
             if (fadePictures) home.ReplacePictures(LoadBackgrounds());
@@ -2336,7 +2373,7 @@ namespace RyGT
                       : new[] { "Game", "Display", "Graphics", "Shaders", "Controls", "Advanced", "About" };
 
             // The sidebar: the game's logo, or its title as text.
-            var logoImage = ready ? LoadLogo() : null;
+            var logoImage = LoadLogo();
             if (logoImage != null)
             {
                 sidebarParts.Add(new PictureBox
@@ -2410,13 +2447,14 @@ namespace RyGT
             RefreshState();
         }
 
-        /// Game: each game's folder and files (the selected game's first), Set up and its log.
+        /// Game: the selected game's folder and files (the game list on the start screen picks it; the
+        /// other game's stay saved in its own settings and show when it is picked), Set up and its log.
         void BuildGamePage()
         {
             var gamePage = NewPage("Game", "Game",
-                "Your own decrypted game dumps, their updates if they are separate, and your PS4 firmware's system modules and fonts, " +
-                "for each game in its own folder. Set up converts the selected game (" + info.Short + ") once; Play starts it.");
-            foreach (var game in new[] { target, GameInfo.Other(target) }) AddGameFiles(gamePage, game);
+                "Your own decrypted " + info.Short + " dump, its update if it is separate, and your PS4 firmware's system modules and fonts. " +
+                "Set up converts " + info.Short + " once; Play starts it. Pick the other game on the start screen to see its folders.");
+            AddGameFiles(gamePage, target);
             var actions = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 16, 0, 0) };
             setup = new Button { Text = "Set up " + info.Short, AutoSize = true, Tag = "accent", Margin = new Padding(0, 0, 10, 0) };
             setup.Click += delegate { StartSetup(); };
@@ -2443,16 +2481,20 @@ namespace RyGT
         }
 
         /// One game's section on the Game page: its folder, then its dump, update, modules and fonts
-        /// (the labels its own launcher had). Saved to that game's RyGT.ini or RyGT7.ini when left.
+        /// (the labels its own launcher had). Saved to that game's <TitleId>.RyGT.ini when left.
         void AddGameFiles(TableLayoutPanel page, GameKind game)
         {
             var gameInfo = GameInfo.Of(game);
             bool ready = RootReady(game);
-            var files = Section(page, gameInfo.Name + (game == target ? "" : " (not selected)"));
+            var files = Section(page, gameInfo.Name);
             var boxes = new TextBox[5];
             pathBoxes[game] = boxes;
-            boxes[0] = AddRow(files, gameInfo.Product + " folder (" + gameInfo.ExeName + ")", state.RootOf(game), delegate { CommitRoot(game); });
-            boxes[0].Leave += delegate { CommitRoot(game); };
+            // GT Sport's folder is the launcher's own: no field for it. GT7's is picked here.
+            if (game == GameKind.GT7)
+            {
+                boxes[0] = AddRow(files, gameInfo.Product + " folder (" + gameInfo.ExeName + ")", state.RootOf(game), delegate { CommitRoot(game); });
+                boxes[0].Leave += delegate { CommitRoot(game); };
+            }
             var s = SettingsOf(game);
             if (game == GameKind.GTSport)
             {
@@ -2475,7 +2517,7 @@ namespace RyGT
             }
             if (!ready)
                 files.Controls.Add(Hint(game == GameKind.GT7
-                    ? "Pick the folder you extracted the ryGT7 release to (the one with RyGT7.exe, libs and converter). GT7's settings, saves, logs and shaders stay in it."
+                    ? "Pick the folder you extracted the ryGT7 release to (the one with libs, converter and patches). GT7's settings, saves, logs and shaders stay in it."
                     : "Pick the RyGTS folder (the one with converter, libs and tools). It must not be the ryGT7 folder: each game needs its own."));
             else if (game == GameKind.GTSport)
                 files.Controls.Add(Hint("Without PS4 dumped fonts, some in-game UI fonts may not draw or appear correctly."));
@@ -2485,11 +2527,12 @@ namespace RyGT
         void CommitRoot(GameKind game)
         {
             TextBox[] boxes;
-            if (!pathBoxes.TryGetValue(game, out boxes) || boxes[0].IsDisposed) return;
+            if (!pathBoxes.TryGetValue(game, out boxes) || boxes[0] == null || boxes[0].IsDisposed) return;
             string text = boxes[0].Text.Trim().TrimEnd('\\');
             if (string.Equals(text, state.RootOf(game), StringComparison.OrdinalIgnoreCase)) return;
             CommitPaths();
             state.SetRoot(game, text);
+            MigrateGt7Serial(); // GAME-004, FEAT-GTS-291: a game's folder was chosen
             try { state.Save(); }
             catch (Exception e) { MessageBox.Show(this, "Could not save the folder: " + e.Message); }
             BeginInvoke((Action)delegate
@@ -2592,8 +2635,8 @@ namespace RyGT
         {
             bool gt7 = target == GameKind.GT7;
             var aboutPage = NewPage("About", "About", gt7
-                ? "ryGT7 for Windows " + (char)183 + " Gran Turismo 7 (CUSA24769)" + (char)183 + " launcher " + LauncherVersion.Value
-                : "RyGTS for Windows " + (char)183 + " Gran Turismo Sport (CUSA03220) " + (char)183 + " update 1.69");
+                ? "RyGT Launcher " + LauncherVersion.Value + " " + (char)183 + " ryGT7 for Windows " + (char)183 + " Gran Turismo 7 (CUSA24769)"
+                : "RyGT Launcher " + LauncherVersion.Value + " " + (char)183 + " RyGTS for Windows " + (char)183 + " Gran Turismo Sport (CUSA03220) " + (char)183 + " update 1.69");
             aboutPage.Controls.Add(new Label
             {
                 AutoSize = true, MaximumSize = new Size(860, 0), ForeColor = Dark.DimText, Tag = "heading", Margin = new Padding(1, 0, 0, 6),
@@ -2619,7 +2662,7 @@ namespace RyGT
             }
             var folders = Section(aboutPage, "Folders");
             folders.Controls.Add(OpenRow("The " + info.Product + " folder", OpenFolder, "Open folder"));
-            folders.Controls.Add(OpenRow("Logs (stdout.log, stderr.log, setup.log)", delegate { OpenSubfolder("logs"); }, "Open log folder"));
+            folders.Controls.Add(OpenRow("Logs (stdout.log, stderr.log, setup.log)", delegate { OpenSubfolder(Path.Combine("logs", info.TitleId)); }, "Open log folder"));
             folders.Controls.Add(OpenRow("Shaders", delegate { OpenSubfolder("shaders"); }, "Open folder"));
             if (gt7) folders.Controls.Add(OpenRow("Photos (exported from the game's gallery)", delegate { OpenSubfolder("Photos"); }, "Open folder"));
 
@@ -2715,7 +2758,6 @@ namespace RyGT
         void ClearUpdate()
         {
             pendingUpdate = null;
-            pendingGt7Update = null;
             home.Notice = "";
             updateButton.Visible = false;
             changelogButton.Visible = false;
@@ -2723,7 +2765,7 @@ namespace RyGT
             home.Invalidate(true);
         }
 
-        /// Asks for the newest build of the selected game's release in the background; never holds up Play.
+        /// Asks for the newest build for the selected game's folder in the background; never holds up Play.
         void CheckForUpdate(bool manual)
         {
             if (!RootReady(target))
@@ -2731,20 +2773,174 @@ namespace RyGT
                 if (manual) MessageBox.Show(this, "Pick the " + info.Product + " folder on the Game page first.");
                 return;
             }
-            if (target == GameKind.GT7) CheckForUpdateGt7(manual); else CheckForUpdateGts(manual);
+            CheckForUpdateOfFolder(manual);
         }
 
-        /// Downloads and installs the pending update of the selected game's folder, then restarts the launcher.
+
+        /// FEAT-GTS-272: the update channel (Launcher.update_channel): stable (the newest release), prerelease
+        /// (the newest release or pre-release) or nightly (the newest build of development). Stable by default
+        /// (FIX-GTS-286: RyGTS publishes releases on GitHub now; it was nightly while there were none).
+        string UpdateChannel()
+        {
+            try
+            {
+                object section, value;
+                var launcher = LoadConfig().TryGetValue("Launcher", out section) ? section as Dictionary<string, object> : null;
+                string channel = launcher != null && launcher.TryGetValue("update_channel", out value) ? value as string : null;
+                return Array.IndexOf(Updater.Channels, channel) >= 0 ? channel : Updater.Stable;
+            }
+            catch { return Updater.Stable; }
+        }
+
+
+        static string ChannelName(string channel)
+        {
+            return channel == Updater.Nightly ? "nightly" : channel == Updater.Prerelease ? "release or prerelease" : "stable release";
+        }
+
+
+        /// Asks GitHub for the newest RyGTS build on the update channel in the background, for the selected
+        /// game's folder (FEAT-GTS-291: one updater for both games); never holds up Play.
+        void CheckForUpdateOfFolder(bool manual)
+        {
+            string installed = Updater.InstalledVersion(root);
+            if (installed == null)
+            {
+                if (manual) MessageBox.Show(this, "The " + info.Product + " folder didn't come from a RyGTS package (it has no RyGTS manifest.json or BUILD_INFO.txt), " +
+                                           "so the launcher can't update it.");
+                return;
+            }
+            string channel = UpdateChannel();
+            GameKind game = target;
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                ReleaseInfo latest = null;
+                Exception error = null;
+                try { latest = Updater.Latest(channel); }
+                catch (Exception e) { error = e; }
+                try { BeginInvoke((Action)delegate { ShowUpdate(game, installed, channel, latest, error, manual); }); }
+                catch (InvalidOperationException) { } // closed meanwhile
+            });
+        }
+
+
+        void ShowUpdate(GameKind game, string installed, string channel, ReleaseInfo latest, Exception error, bool manual)
+        {
+            if (target != game) return; // FEAT-GTS-290: the game changed meanwhile
+            if (channel != UpdateChannel()) return; // the channel changed meanwhile; that check shows its own
+            if (latest != null && Updater.IsNewer(latest, installed, root)) // FIX-GTS-286: not the same build again
+            {
+                pendingUpdate = latest;
+                home.Notice = (latest.Artifact ? "A newer RyGTS nightly is available: " + Updater.Display(latest.Version)
+                                               : "RyGTS " + latest.Version + (latest.Prerelease ? " (prerelease)" : "") + " is available") +
+                              " (you have " + Updater.Display(installed) + ")." +
+                              (latest.Changes().Count > 0 ? "" : Environment.NewLine + latest.Summary(240)); // the notes are behind Changelog
+                updateButton.Text = "Update"; // the notice names the version; the button had no room for it
+                updateButton.Visible = true;
+                changelogButton.Visible = latest.Changes().Count > 0;
+                home.PerformLayout();
+                home.Invalidate(true);
+            }
+            else if (manual)
+            {
+                MessageBox.Show(this, error != null ? "Could not check for updates: " + error.Message
+                                    : latest == null && channel == Updater.Nightly ? "No nightly to update to was found (nightlies are kept for 7 days)."
+                                    : latest == null ? "No RyGTS " + ChannelName(channel) + " was found on GitHub."
+                                    : "RyGTS " + Updater.Display(installed) + " is the newest " + ChannelName(channel) + ".");
+            }
+        }
+
+
+        /// Downloads and installs the pending update, then restarts the launcher.
         void InstallUpdate()
         {
-            if (target == GameKind.GT7) InstallUpdateGt7(); else InstallUpdateGts();
+            var release = pendingUpdate;
+            if (release == null || busy) return;
+            if (MessageBox.Show(this, "Update RyGTS to " + Updater.Display(release.Version) + (release.Prerelease ? " (prerelease)" : "") + "?" +
+                                Environment.NewLine + Environment.NewLine +
+                                "The launcher restarts when it is done. Your game, saves and settings are kept, and you can roll back " +
+                                "from Settings > About.", "Update RyGTS", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK)
+                return;
+            busy = true;
+            updateButton.Enabled = false;
+            play.Enabled = false;
+            string last = null;
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                Exception error = null;
+                try
+                {
+                    Updater.Install(root, info.TitleId, release, (text, fraction) =>
+                    {
+                        if (text == last) return;
+                        last = text;
+                        BeginInvoke((Action)delegate { status.Text = text; });
+                    });
+                }
+                catch (Exception e) { error = e; }
+                BeginInvoke((Action)delegate
+                {
+                    busy = false;
+                    if (error == null) { Updater.Restart(root); return; }
+                    updateButton.Enabled = true;
+                    RefreshState();
+                    status.Text = "The update failed: " + error.Message;
+                    MessageBox.Show(this, "The update failed, and the launcher's files are as they were." + Environment.NewLine + error.Message);
+                });
+            });
         }
 
-        /// The selected game's update settings: GT Sport's channels on GitHub, ryGT7's releases on GitLab.
+
+        /// Updates (About, both games): the check at start, the channel, a check now, and a roll back of the
+        /// selected game's folder's last update.
         void AddUpdateSettings(TableLayoutPanel panel)
         {
-            if (target == GameKind.GT7) AddUpdateSettingsGt7(panel); else AddUpdateSettingsGts(panel);
+            AddOption(panel, "Check for updates at start", "Launcher", "check_updates", true);
+            var channelRow = new FlowLayoutPanel { AutoSize = true, BackColor = Color.Transparent, Margin = new Padding(0, 4, 0, 2), WrapContents = false };
+            var channelLabel = new Label { Text = "Update channel", AutoSize = false, Width = 196, Height = 20, BackColor = Color.Transparent, Margin = new Padding(0, 6, 8, 0) };
+            var channelBox = new DarkComboBox { Width = 230, DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat };
+            channelBox.Items.AddRange(new object[] { "Stable", "Prerelease", "Nightly" });
+            channelBox.SelectedIndex = Array.IndexOf(Updater.Channels, UpdateChannel());
+            channelBox.SelectedIndexChanged += delegate
+            {
+                try { WriteSetting("Launcher", "update_channel", Updater.Channels[channelBox.SelectedIndex]); }
+                catch (Exception e) { MessageBox.Show(this, "Could not save the setting: " + e.Message); return; }
+                // What was found on the old channel no longer applies.
+                ClearUpdate();
+                if (ReadSetting("Launcher", "check_updates", true)) CheckForUpdate(false);
+            };
+            channelRow.Controls.Add(channelLabel);
+            channelRow.Controls.Add(channelBox);
+            panel.Controls.Add(channelRow);
+            var row = new FlowLayoutPanel { AutoSize = true, BackColor = Color.Transparent, Margin = new Padding(0, 4, 0, 2), WrapContents = false };
+            string installed = Updater.InstalledVersion(root);
+            var label = new Label
+            {
+                Text = "Launcher " + LauncherVersion.Value + (installed == null ? "" : " (" + Updater.Display(installed) + ")"),
+                AutoSize = true, MinimumSize = new Size(196, 20), BackColor = Color.Transparent, Margin = new Padding(0, 6, 8, 0) // FIX-GTS-286: not cut off
+            };
+            var check = new Button { Text = "Check now", AutoSize = true, Margin = new Padding(0, 0, 6, 0) };
+            check.Click += delegate { CheckForUpdate(true); };
+            var last = Updater.LastUpdate(root);
+            var rollBack = new Button { Text = last == null ? "Roll back" : "Roll back to " + Updater.Display(last.Item2), AutoSize = true, Enabled = last != null, Margin = new Padding(0) };
+            rollBack.Click += delegate
+            {
+                if (busy) return;
+                if (MessageBox.Show(this, "Put back RyGTS " + Updater.Display(last.Item2) + " (as before the update to " + Updater.Display(last.Item3) +
+                                    ") and restart the launcher?", "Roll back", MessageBoxButtons.OKCancel) != DialogResult.OK)
+                    return;
+                try { Updater.RollBack(root); Updater.Restart(root); }
+                catch (Exception e) { MessageBox.Show(this, "Could not roll back: " + e.Message); }
+            };
+            row.Controls.Add(label);
+            row.Controls.Add(check);
+            row.Controls.Add(rollBack);
+            panel.Controls.Add(row);
+            panel.Controls.Add(Hint("Stable is the newest release on GitHub, Prerelease the newest release or prerelease, and Nightly " +
+                                    "the newest build of development (downloaded through nightly.link; nightlies are kept for 7 days). " +
+                                    "No GitHub account is needed. Your game, saves, settings and caches are never touched."));
         }
+
 
         void RefreshState()
         {
@@ -2762,19 +2958,32 @@ namespace RyGT
 
         void Play()
         {
+            MigrateApp0();
             if (target == GameKind.GT7) PlayGt7(); else PlayGts();
         }
 
         void RunSetup()
         {
+            MigrateApp0();
             if (target == GameKind.GT7) RunSetupGt7(); else RunSetupGts();
+        }
+
+        /// FEAT-GTS-291: finishes a move of app0 into app0\<serial> that was cut short, and moves app0 there
+        /// when the game's executable does not load app0\sce_module any more (App0Layout.Migrate). Set up
+        /// moves it itself before it writes the new modules. Each step goes to the game's setup log.
+        void MigrateApp0()
+        {
+            if (!RootReady(target)) return;
+            MigrateSharedNames(target); // FEAT-GTS-291: the settings file, convert, temp0 and data too
+            try { foreach (string note in App0Layout.Migrate(root, info, false)) Log(note); }
+            catch (Exception e) { Log("app0: " + e.Message); }
         }
 
         void StartSetup()
         {
             CommitPaths();
             if (!RootReady(target)) { MessageBox.Show(this, "Pick the " + info.Product + " folder on the Game page first."); return; }
-            try { setupLogPath = LogFiles.Prepare(root, "setup.log"); }
+            try { setupLogPath = LogFiles.Prepare(root, "setup.log", info.TitleId); }
             catch (Exception e) { MessageBox.Show(this, "Could not prepare setup log: " + e.Message); return; }
             var game = target;
             busy = true;
@@ -2808,7 +3017,13 @@ namespace RyGT
         List<Image> LoadBackgrounds()
         {
             var found = new List<Image>();
-            if (!RootReady(target)) return found;
+            if (!RootReady(target))
+            {
+                // FEAT-GTS-290: before a folder is picked, the game's own picture built into RyGTLauncher.exe.
+                var builtIn = EmbeddedPicture(target == GameKind.GT7 ? "gt7-background.png" : "gts-background.png");
+                if (builtIn != null) found.Add(builtIn);
+                return found;
+            }
             string folder = Path.Combine(root, "launcher");
             try
             {
@@ -2828,11 +3043,35 @@ namespace RyGT
             catch { }
             if (found.Count == 0)
             {
+                // FEAT-GTS-290: the game's launcher picture built into RyGTLauncher.exe (ryGT7's for GT7), then
+                // the game's own pic1.png.
+                var builtIn = EmbeddedPicture(target == GameKind.GT7 ? "gt7-background.png" : "gts-background.png");
+                if (builtIn != null) found.Add(builtIn);
+            }
+            if (found.Count == 0)
+            {
                 string path = GameFile("sce_sys\\pic1.png");
                 var picture = path != null ? LoadPicture(path) : null;
                 if (picture != null) found.Add(picture);
             }
             return found;
+        }
+
+        /// A picture built into RyGTLauncher.exe (build.cmd's /resource), or null.
+        static Image EmbeddedPicture(string name)
+        {
+            try
+            {
+                using (var stream = typeof(LoaderForm).Assembly.GetManifestResourceStream(name))
+                {
+                    if (stream == null) return null;
+                    var copy = new MemoryStream();
+                    stream.CopyTo(copy);
+                    copy.Position = 0;
+                    return Image.FromStream(copy);
+                }
+            }
+            catch { return null; }
         }
 
         string Exe { get { return Path.Combine(root, info.ExeName); } }
@@ -3004,12 +3243,17 @@ namespace RyGT
         }
 
 
-        /// The logo, launcher\logo.png next to RyGTS.exe (null without it: the title is text).
+        /// The logo, launcher\logo.png next to RyGTLauncher.exe (null without it: the title is text).
         Image LoadLogo()
         {
-            string path = Path.Combine(root, "launcher", "logo.png");
-            try { return File.Exists(path) ? Image.FromStream(new MemoryStream(File.ReadAllBytes(path))) : null; }
-            catch { return null; }
+            if (RootReady(target))
+            {
+                string path = Path.Combine(root, "launcher", "logo.png");
+                try { if (File.Exists(path)) return Image.FromStream(new MemoryStream(File.ReadAllBytes(path))); }
+                catch { }
+            }
+            // FEAT-GTS-290: the game's RY logo built into RyGTLauncher.exe (RY GTS, RY GT7).
+            return EmbeddedPicture(target == GameKind.GT7 ? "gt7-logo.png" : "gts-logo.png");
         }
 
 
@@ -3094,7 +3338,8 @@ namespace RyGT
         }
 
 
-        string ConfigPath { get { return Path.Combine(root, "user", "custom_configs", "CUSA03220.json"); } }
+        // GAME-004: the selected game's own serial, CUSA03220.json for GT Sport and CUSA24769.json for GT7.
+        string ConfigPath { get { return info.ConfigPath(root); } }
 
 
         /// A shadGT setting in a section of the GT Sport config (General: show_splash,
@@ -3627,6 +3872,9 @@ namespace RyGT
 
         readonly object logLock = new object();
 
+        /// Lines for the log from before a game's folder was known (OldLaunchers.Retire at start).
+        static readonly List<string> startupNotes = new List<string>();
+
         string setupLogPath;
 
 
@@ -3639,8 +3887,11 @@ namespace RyGT
                     // FEAT-GTS-290: the selected game's logs\setup.log; none while it has no folder.
                     if (setupLogPath == null && RootReady(target))
                     {
-                        setupLogPath = LogFiles.Prepare(root, "setup.log");
+                        setupLogPath = LogFiles.Prepare(root, "setup.log", info.TitleId);
                         File.AppendAllText(setupLogPath, LauncherVersion.Banner + " (" + info.Short + ")" + Environment.NewLine);
+                        // FEAT-GTS-291: what happened to an older launcher at start, in the first log written.
+                        foreach (string note in startupNotes) File.AppendAllText(setupLogPath, note + Environment.NewLine);
+                        startupNotes.Clear();
                     }
                     if (setupLogPath != null) File.AppendAllText(setupLogPath, line + Environment.NewLine);
                 }
@@ -3672,10 +3923,10 @@ namespace RyGT
         }
 
 
-        /// RyGTS.exe --setup: the same set up without the window, from the folders in RyGT.ini.
+        /// RyGTLauncher.exe --setup: the same set up without the window, from the folders in the game's <TitleId>.RyGT.ini.
         public int SetupWithoutWindow()
         {
-            try { setupLogPath = LogFiles.Prepare(root, "setup.log"); RunSetup(); return 0; }
+            try { setupLogPath = LogFiles.Prepare(root, "setup.log", info.TitleId); RunSetup(); return 0; }
             catch (Exception e) { Log("ERROR: " + e.Message); return 1; }
         }
 
@@ -3761,7 +4012,7 @@ namespace RyGT
                 process.BeginErrorReadLine();
                 process.WaitForExit();
                 lock (lines) File.WriteAllLines(Path.Combine(directory, "convert.log"), lines);
-                Log("Converter finished with exit code " + process.ExitCode + " (full output in convert\\convert.log).");
+                Log("Converter finished with exit code " + process.ExitCode + " (full output in convert\\" + Path.GetFileName(directory) + "\\convert.log).");
                 return process.ExitCode;
             }
         }
@@ -3776,11 +4027,12 @@ namespace RyGT
         }
 
 
-        /// The first of the game's folders that has `name` at its top: RyGTS\app0 (what Set up made),
-        /// the update, then the base game, in the order the game looks (FEAT-GTS-259).
+        /// The first of the game's folders that has `name` at its top: RyGTS\app0\<serial> (what Set up made;
+        /// app0 in a folder set up before FEAT-GTS-291), the update, then the base game, in the order the game
+        /// looks (FEAT-GTS-259).
         string GameFile(string name)
         {
-            var folders = new List<string> { Path.Combine(root, "app0") };
+            var folders = new List<string> { App0Layout.Top(root, info.TitleId) };
             if (settings.Update.Length > 0) folders.Add(settings.Update);
             if (settings.Game.Length > 0) folders.Add(settings.Game);
             foreach (var folder in folders)
@@ -3978,9 +4230,16 @@ namespace RyGT
         }
 
 
-        static void AppendSetupLog(string root, string line)
+        /// FEAT-GTS-291: lines for a game's logs\<serial>\setup.log (it was setup.log in the runtime folder,
+        /// which two games sharing the folder would both write).
+        static void AppendSetupLog(string root, string serial, params string[] lines)
         {
-            try { File.AppendAllText(Path.Combine(root, "setup.log"), line + Environment.NewLine); }
+            try
+            {
+                string logs = LogFiles.Folder(root, serial);
+                Directory.CreateDirectory(logs);
+                File.AppendAllLines(Path.Combine(logs, "setup.log"), lines);
+            }
             catch { }
         }
 
@@ -4003,11 +4262,14 @@ namespace RyGT
                 catch (AbandonedMutexException) { owns = true; }
                 if (!owns)
                 {
-                    MessageBox.Show("RyGTS Launcher is already running.\n\n" +
-                        "Please close the existing launcher, then open RyGTS Launcher again.",
-                        "RyGTS Launcher", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show("RyGT Launcher is already running.\n\n" +
+                        "Please close the existing launcher, then open RyGT Launcher again.",
+                        "RyGT Launcher", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return 2;
                 }
+                // FEAT-GTS-291: an older launcher (RyGTS.exe, RyGT7.exe) beside this one goes to <name>.old.
+                try { startupNotes.AddRange(OldLaunchers.Retire(AppDomain.CurrentDomain.BaseDirectory, Application.ExecutablePath)); }
+                catch { }
                 try { return RunLauncher(args); }
                 finally { instance.ReleaseMutex(); }
             }

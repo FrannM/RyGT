@@ -20,34 +20,34 @@ namespace RyGT
             try
             {
                 string launchRoot = Path.Combine(root, "launch");
-                LogFiles.PrepareRuntimeLogs(launchRoot);
-                Check(Directory.GetFiles(Path.Combine(launchRoot, "logs")).Length == 2, "first launch creates exactly two files");
-                File.WriteAllText(Path.Combine(launchRoot, "logs", "stdout.log"), "keep");
-                LogFiles.PrepareRuntimeLogs(launchRoot);
-                Check(Directory.GetFiles(Path.Combine(launchRoot, "logs")).Length == 4, "second launch archives each file once");
-                Check(Array.Exists(Directory.GetFiles(Path.Combine(launchRoot, "logs")), path => File.ReadAllText(path) == "keep"), "previous output retained");
+                LogFiles.PrepareRuntimeLogs(launchRoot, "CUSA03220");
+                Check(Directory.GetFiles(Path.Combine(launchRoot, "logs", "CUSA03220")).Length == 2, "first launch creates exactly two files");
+                File.WriteAllText(Path.Combine(launchRoot, "logs", "CUSA03220", "stdout.log"), "keep");
+                LogFiles.PrepareRuntimeLogs(launchRoot, "CUSA03220");
+                Check(Directory.GetFiles(Path.Combine(launchRoot, "logs", "CUSA03220")).Length == 4, "second launch archives each file once");
+                Check(Array.Exists(Directory.GetFiles(Path.Combine(launchRoot, "logs", "CUSA03220")), path => File.ReadAllText(path) == "keep"), "previous output retained");
                 foreach (string name in new[] { "stdout.log", "stderr.log", "setup.log" })
                 {
                     File.WriteAllText(Path.Combine(root, name), "legacy");
-                    Directory.CreateDirectory(Path.Combine(root, "logs"));
-                    File.WriteAllText(Path.Combine(root, "logs", name), "old");
-                    string active = LogFiles.Prepare(root, name);
+                    Directory.CreateDirectory(Path.Combine(root, "logs", "CUSA03220"));
+                    File.WriteAllText(Path.Combine(root, "logs", "CUSA03220", name), "old");
+                    string active = LogFiles.Prepare(root, name, "CUSA03220");
                     Check(!File.Exists(active) && !File.Exists(Path.Combine(root, name)), "rotate and migrate before writing");
                     File.WriteAllText(active, "new");
                     for (int repeat = 0; repeat < 10; ++repeat)
                     {
-                        active = LogFiles.Prepare(root, name);
+                        active = LogFiles.Prepare(root, name, "CUSA03220");
                         File.WriteAllText(active, "new-" + repeat);
                     }
-                    var archives = Array.FindAll(Directory.GetFiles(Path.Combine(root, "logs")),
+                    var archives = Array.FindAll(Directory.GetFiles(Path.Combine(root, "logs", "CUSA03220")),
                         path => Path.GetFileName(path).StartsWith(name + ".", StringComparison.Ordinal));
                     Check(archives.Length == 12, "every prior log retained");
                     Check(Array.Exists(archives, path => File.ReadAllText(path) == "legacy"), "legacy contents retained");
                     Check(Array.Exists(archives, path => File.ReadAllText(path) == "old"), "prior contents retained");
                 }
-                var assembly = System.Reflection.Assembly.LoadFrom(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "RyGTS.exe"));
+                var assembly = System.Reflection.Assembly.LoadFrom(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "RyGTLauncher.exe"));
                 var settingsType = assembly.GetType("RyGT.Settings", true);
-                string ini = Path.Combine(root, "RyGT.ini");
+                string ini = Path.Combine(root, "CUSA03220.RyGT.ini"); // FEAT-GTS-291: GT Sport's settings file
                 var settings = Activator.CreateInstance(settingsType, new object[] { ini });
                 var levelField = settingsType.GetField("StdoutLevel");
                 Check((string)levelField.GetValue(settings) == "Warning", "launcher default is Warning");
@@ -58,7 +58,7 @@ namespace RyGT
                 File.WriteAllText(ini, "stdout_level=invalid");
                 restored = Activator.CreateInstance(settingsType, new object[] { ini });
                 Check((string)levelField.GetValue(restored) == "Warning", "invalid launcher level falls back to Warning");
-                string directory = Path.Combine(root, "logs");
+                string directory = Path.Combine(root, "logs", "CUSA03220");
                 File.WriteAllText(Path.Combine(directory, "stdout.log.same"), "keep");
                 Check(LogFiles.ArchiveName(directory, "stdout.log", "same").EndsWith(".same.1"), "timestamp collision suffix");
                 Check(File.ReadAllText(Path.Combine(directory, "stdout.log.same")) == "keep", "archive never overwritten");

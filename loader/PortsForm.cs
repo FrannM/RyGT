@@ -441,7 +441,7 @@ namespace RyGT
             var parts = (current ?? "").Split(',');
             for (int i = 0; i < Players; ++i) chosen[i] = i < parts.Length ? parts[i].Trim() : "";
 
-            Text = "RyGTS - Controller ports";
+            Text = "RyGT Launcher - Controller ports";
             Font = new Font("Segoe UI", 9f);
             StartPosition = FormStartPosition.CenterParent;
             ClientSize = new Size(900, 540);

@@ -1,4 +1,4 @@
-// FEAT-GTS-469: entries in the game's config (user\custom_configs\CUSA03220.json) that neither the
+// FEAT-GTS-469: entries in the game's config (user\custom_configs\<serial>.json, GameInfo.ConfigPath) that neither the
 // launcher nor the renderer reads any more. When the launcher opens it offers to remove them.
 using System;
 using System.Collections.Generic;

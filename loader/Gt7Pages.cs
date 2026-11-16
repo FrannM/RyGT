@@ -1,6 +1,6 @@
 ﻿// FEAT-GTS-290: what only Gran Turismo 7 has in the unified launcher: its Display, Graphics and
 // Controls pages (ControlsPage.cs), Online and Account (Online.cs), its Set up (GT7Setup.cs, the Offline
-// mode patch), its updates (GitLab rygt-team/rygt7, Gt7Updater.cs) and how it starts GT7.exe, all as
+// mode patch) and how it starts GT7.exe, all as
 // ryGT7's own launcher (rygt7 6178d0b, 0.1.6) had them.
 // SPDX-License-Identifier: GPL-2.0-only
 
@@ -770,125 +770,12 @@ namespace RyGT
         }
 
 
-        /// Asks GitLab for the newest release in the background; never holds up Play.
-        void CheckForUpdateGt7(bool manual)
-        {
-            string installed = Gt7Updater.InstalledVersion(root);
-            if (installed == null)
-            {
-                if (manual) MessageBox.Show(this, "This launcher didn't come from a release package (it has no manifest.json), so it can't update itself.");
-                return;
-            }
-            ThreadPool.QueueUserWorkItem(delegate
-            {
-                Gt7ReleaseInfo latest = null;
-                Exception error = null;
-                try { latest = Gt7Updater.Latest(); }
-                catch (Exception e) { error = e; }
-                try { BeginInvoke((Action)delegate { ShowUpdateGt7(installed, latest, error, manual); }); }
-                catch (InvalidOperationException) { } // closed meanwhile
-            });
-        }
-
-
-        void ShowUpdateGt7(string installed, Gt7ReleaseInfo latest, Exception error, bool manual)
-        {
-            if (target != GameKind.GT7) return; // FEAT-GTS-290: the game changed meanwhile
-            if (latest != null && Gt7Updater.IsNewer(latest.Version, installed))
-            {
-                pendingGt7Update = latest;
-                home.Notice = "ryGT7 " + latest.Version + " is available (you have " + installed + ")." + Environment.NewLine + latest.Summary(240);
-                updateButton.Text = "Update to " + latest.Version;
-                updateButton.Visible = true;
-                home.PerformLayout();
-                home.Invalidate(true);
-            }
-            else if (manual)
-            {
-                MessageBox.Show(this, error != null ? "Could not check for updates: " + error.Message
-                                                    : "ryGT7 " + installed + " is the newest release.");
-            }
-        }
-
-
-        /// Downloads and installs the pending release, then restarts the launcher.
-        void InstallUpdateGt7()
-        {
-            var release = pendingGt7Update;
-            if (release == null || busy) return;
-            if (MessageBox.Show(this, "Update ryGT7 to " + release.Version + "?" + Environment.NewLine + Environment.NewLine +
-                                "The launcher downloads " + release.ZipName + ", checks it, replaces its own program files and restarts. " +
-                                "Your game, saves, settings and shader caches stay as they are. The old files are kept, so you can " +
-                                "roll back from Settings > About.", "Update ryGT7", MessageBoxButtons.OKCancel) != DialogResult.OK)
-                return;
-            busy = true;
-            updateButton.Enabled = false;
-            play.Enabled = false;
-            string last = null;
-            ThreadPool.QueueUserWorkItem(delegate
-            {
-                Exception error = null;
-                try
-                {
-                    Gt7Updater.Install(root, release, (text, fraction) =>
-                    {
-                        if (text == last) return;
-                        last = text;
-                        BeginInvoke((Action)delegate { status.Text = text; });
-                    });
-                }
-                catch (Exception e) { error = e; }
-                BeginInvoke((Action)delegate
-                {
-                    busy = false;
-                    if (error == null) { Gt7Updater.Restart(root); return; }
-                    updateButton.Enabled = true;
-                    RefreshState();
-                    status.Text = "The update failed: " + error.Message;
-                    MessageBox.Show(this, "The update failed, and the launcher's files are as they were." + Environment.NewLine + error.Message);
-                });
-            });
-        }
-
-
-        // Launcher updates: the check at start, a check now, and a roll back of the last update.
-        void AddUpdateSettingsGt7(TableLayoutPanel panel)
-        {
-            // The question asked in the settings: whether the launcher looks for a newer release at start.
-            AddOption(panel, "Check for updates", "Launcher", "check_updates", true);
-            var row = new FlowLayoutPanel { AutoSize = true, BackColor = Color.Transparent, Margin = new Padding(0, 4, 0, 2), WrapContents = false };
-            var label = new Label
-            {
-                Text = "Launcher " + LauncherVersion.Value + (Gt7Updater.InstalledVersion(root) == null ? "" : " (" + Gt7Updater.InstalledVersion(root) + ")"),
-                AutoSize = false, Width = 196, Height = 20,
-                BackColor = Color.Transparent, Margin = new Padding(0, 6, 8, 0)
-            };
-            var check = new Button { Text = "Check now", AutoSize = true, Margin = new Padding(0, 0, 6, 0) };
-            check.Click += delegate { CheckForUpdate(true); };
-            var last = Gt7Updater.LastUpdate(root);
-            var rollBack = new Button { Text = last == null ? "Roll back" : "Roll back to " + last.Item2, AutoSize = true, Enabled = last != null, Margin = new Padding(0) };
-            rollBack.Click += delegate
-            {
-                if (busy) return;
-                if (MessageBox.Show(this, "Put back ryGT7 " + last.Item2 + " (as before the update to " + last.Item3 + ") and restart the launcher?",
-                                    "Roll back", MessageBoxButtons.OKCancel) != DialogResult.OK)
-                    return;
-                try { Gt7Updater.RollBack(root); Gt7Updater.Restart(root); }
-                catch (Exception e) { MessageBox.Show(this, "Could not roll back: " + e.Message); }
-            };
-            row.Controls.Add(label);
-            row.Controls.Add(check);
-            row.Controls.Add(rollBack);
-            panel.Controls.Add(row);
-        }
-
-
         /// A GPU section setting from the game's settings file, or null.
         static object GpuSetting(string root, string key)
         {
             try
             {
-                string path = Path.Combine(root, "user", "custom_configs", "CUSA03220.json");
+                string path = GameInfo.GT7.ConfigPath(root);
                 var config = new System.Web.Script.Serialization.JavaScriptSerializer()
                     .DeserializeObject(File.ReadAllText(path)) as Dictionary<string, object>;
                 object found, value;
@@ -915,7 +802,7 @@ namespace RyGT
         {
             try
             {
-                string path = Path.Combine(root, "user", "custom_configs", "CUSA03220.json");
+                string path = GameInfo.GT7.ConfigPath(root);
                 var config = new System.Web.Script.Serialization.JavaScriptSerializer()
                     .DeserializeObject(File.ReadAllText(path)) as Dictionary<string, object>;
                 object found, value;
@@ -933,7 +820,7 @@ namespace RyGT
         {
             try
             {
-                string path = Path.Combine(root, "user", "custom_configs", "CUSA03220.json");
+                string path = GameInfo.GT7.ConfigPath(root);
                 var config = new System.Web.Script.Serialization.JavaScriptSerializer()
                     .DeserializeObject(File.ReadAllText(path)) as Dictionary<string, object>;
                 object found, value;
@@ -961,7 +848,7 @@ namespace RyGT
         void RefreshStateGt7()
         {
             bool ready = File.Exists(Exe) && (RuntimeReadsGameFolders() ? GameFile("contents\\gt.idx") != null
-                                                         : File.Exists(Path.Combine(root, "app0", "contents", "gt.idx")));
+                                                         : File.Exists(Path.Combine(App0Layout.Top(root, info.TitleId), "contents", "gt.idx")));
             bool running = IsGameRunning();
             play.Enabled = ready && !busy && !running;
             if (setup != null) setup.Enabled = !busy && !running;
@@ -996,6 +883,7 @@ namespace RyGT
         {
             if (IsGameRunning())
                 throw new Exception("Close GT7 before running Set up.");
+            MigrateGt7Serial(); // GAME-004
             string baseDir = settings.Game, updateDir = settings.Update;
             var layout = new GameLayout(baseDir, updateDir, root);
             settings.Save();
@@ -1033,7 +921,7 @@ namespace RyGT
 
             // 1. The executable and modules to convert, unwrapped to plain ELF.
             SetStatus("Preparing the game files...");
-            string work = Path.Combine(root, "convert");
+            string work = info.OwnFolder(root, "convert"); // FEAT-GTS-291: convert\CUSA24769
             string workModules = Path.Combine(work, "sce_module");
             if (Directory.Exists(workModules)) Directory.Delete(workModules, true);
             Directory.CreateDirectory(workModules);
@@ -1057,16 +945,21 @@ namespace RyGT
             if (!File.Exists(converter)) throw new Exception("converter\\ryty.exe is missing from the RyGT folder.");
             string convertedRoot = Path.Combine(work, "runtime-" + Guid.NewGuid().ToString("N"));
             string convertedExe = Path.Combine(convertedRoot, "GT7.exe");
-            string convertedModules = Path.Combine(convertedRoot, "app0", "sce_module");
+            // FEAT-GTS-291: the converted modules go in app0\CUSA24769 (App0Layout), and GT7.exe loads them from there.
+            bool perGame = App0Layout.Supported(root);
+            string app0Option;
+            string app0Target = App0Layout.SetupFolder(root, info.TitleId, perGame, out app0Option);
+            string convertedModules = Path.Combine(perGame ? App0Layout.Folder(convertedRoot, info.TitleId) : Path.Combine(convertedRoot, "app0"), "sce_module");
+            if (!perGame) Log("Note: this folder's converter or runtime libraries predate app0\\" + info.TitleId + "; the converted modules go in app0 as before.");
             Directory.CreateDirectory(convertedModules);
-            int code = Run(converter, "--windows --ps4 --skip-syscall-check --registry --report \"" +
+            int code = Run(converter, "--windows --ps4 --skip-syscall-check --registry" + app0Option + " --report \"" +
                 Path.Combine(work, "port-report.json") + "\" \"" + Path.Combine(work, "eboot.elf") + "\" \"" + convertedExe + "\"", work);
-            if (code != 0 || !File.Exists(convertedExe)) throw new Exception("The converter failed (exit code " + code + "); the previous game executable was preserved. See convert\\convert.log.");
+            if (code != 0 || !File.Exists(convertedExe)) throw new Exception("The converter failed (exit code " + code + "); the previous game executable was preserved. See convert\\" + info.TitleId + "\\convert.log.");
             if (offline != null)
             {
                 int removed = offline.Apply(convertedExe, File.ReadAllBytes(Path.Combine(work, "eboot.elf")));
-                // The patch writes its dealership catalog to /data/gt7offline.
-                Directory.CreateDirectory(Path.Combine(root, "data", "gt7offline"));
+                // The patch writes its dealership catalog to /data/gt7offline (data\CUSA24769\gt7offline, FEAT-GTS-291).
+                Directory.CreateDirectory(Path.Combine(info.OwnFolder(root, "data"), "gt7offline"));
                 Log("Applied the " + OfflinePatch.GroupName + " patch to GT7.exe" + (removed > 0 ? " (" + removed + " overlapping relocations disabled)." : "."));
             }
             GameExe.PrepareGt7(convertedExe, layout.Get("sce_sys\\icon0.png"));
@@ -1075,11 +968,13 @@ namespace RyGT
             // 3. app0: only the converted modules. The game reads its own files from the update, then the
             //    base game folder (FEAT-GTS-251; see core/libs/prx/libc/include/AppOverlay.hpp).
             SetStatus("Linking the game files...");
-            if (RuntimeReadsGameFolders()) UseGt7GameFolders(layout, convertedModules);
+            // The new GT7.exe loads app0\CUSA24769\sce_module: the folder's older app0 moves there first.
+            if (perGame) foreach (string note in App0Layout.Migrate(root, info, true)) Log(note);
+            if (RuntimeReadsGameFolders()) UseGt7GameFolders(layout, convertedModules, app0Target);
             else
             {
                 Log("These runtime libraries need the game's files linked into app0.");
-                LinkGameFiles(layout, convertedModules);
+                LinkGameFiles(layout, convertedModules, app0Target);
             }
             File.Copy(convertedExe, Exe, true);
             string registry = Path.ChangeExtension(convertedExe, ".registry.json");
@@ -1113,7 +1008,7 @@ namespace RyGT
 
         string OfflinePatchPath { get { return Path.Combine(root, "patches", GameLayout.TitleId + ".xml"); } }
 
-        string OfflineStampPath { get { return Path.Combine(root, "convert", "offline-patch.txt"); } }
+        string OfflineStampPath { get { return Path.Combine(GameInfo.GT7.OwnFolder(root, "convert"), "offline-patch.txt"); } }
 
 
         // The SHA-256 of patches\CUSA24769.xml, or "none" without one.
@@ -1130,16 +1025,15 @@ namespace RyGT
         {
             string state = OfflinePatchState();
             if (File.Exists(OfflineStampPath)) return File.ReadAllText(OfflineStampPath).Trim() != state;
-            bool applied = Directory.Exists(Path.Combine(root, "data", "gt7offline"));
+            bool applied = Directory.Exists(Path.Combine(GameInfo.GT7.OwnFolder(root, "data"), "gt7offline"));
             return (state != "none") != applied;
         }
 
 
         // With a runtime that can't read the game folders (see RuntimeReadsGameFolders), app0 is linked
         // as before.
-        void LinkGameFiles(GameLayout layout, string convertedModules)
+        void LinkGameFiles(GameLayout layout, string convertedModules, string app0)
         {
-            string app0 = Path.Combine(root, "app0");
             string stage = Path.Combine(root, "app0.setup-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(stage);
             var unixLinks = new Dictionary<string, string>();
@@ -1167,8 +1061,9 @@ namespace RyGT
             // The converter writes its modules under app0. Copy those small converted files,
             // never the source PRX files, into the new data tree before swapping directories.
             CopyDirectory(convertedModules, Path.Combine(stage, "sce_module"));
-            string previous = app0 + ".previous-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff");
+            string previous = PreviousApp0(app0);
             if (Directory.Exists(app0)) Directory.Move(app0, previous);
+            Directory.CreateDirectory(Path.GetDirectoryName(app0));
             try { Directory.Move(stage, app0); }
             catch { if (Directory.Exists(previous)) Directory.Move(previous, app0); throw; }
             Log("Linked " + linked + " game files. Update files override matching base files; other base files are preserved.");
@@ -1235,26 +1130,39 @@ namespace RyGT
         }
 
 
-        // FEAT-GTS-251: the game reads /app0 straight from the update and base game folders (RyGT.ini
+        // FEAT-GTS-251: the game reads /app0 straight from the update and base game folders (CUSA24769.RyGT.ini
         // game= and update=), so nothing is linked into app0 any more: before, every game file was
         // hard-linked there, which Explorer counted as another copy of the game, once more for each
         // app0.previous-* folder an earlier Set up left. Those links are removed too.
-        void UseGt7GameFolders(GameLayout layout, string convertedModules)
+        void UseGt7GameFolders(GameLayout layout, string convertedModules, string app0)
         {
-            string app0 = Path.Combine(root, "app0");
             string stage = Path.Combine(root, "app0.setup-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(stage);
             // The converter writes its modules under app0. Copy those small converted files,
             // never the source PRX files, into the new app0 before swapping directories.
             CopyDirectory(convertedModules, Path.Combine(stage, "sce_module"));
-            string previous = app0 + ".previous-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff");
+            string previous = PreviousApp0(app0);
             if (Directory.Exists(app0)) Directory.Move(app0, previous);
+            Directory.CreateDirectory(Path.GetDirectoryName(app0));
             try { Directory.Move(stage, app0); }
             catch { if (Directory.Exists(previous)) Directory.Move(previous, app0); throw; }
-            foreach (string old in Directory.GetDirectories(root, "app0.previous-*"))
+            // app0.previous-* (app0 before FEAT-GTS-291) and app0.<serial>.previous-* (app0\<serial>).
+            foreach (string old in Directory.GetDirectories(root, "app0*.previous-*"))
                 RemoveGt7GameLinks(old, layout, Log);
             Log("The game reads its files from " + (settings.Update.Length > 0 ? settings.Update + " and " : "") + settings.Game +
                 "; update files override matching base files.");
+        }
+
+
+        /// Where the app0 Set up replaces is kept: beside app0 in the runtime folder, never inside app0 (where a
+        /// name that is not a serial would count as the layout before FEAT-GTS-291): app0.previous-<time> for
+        /// app0, app0.<serial>.previous-<time> for app0\<serial>.
+        string PreviousApp0(string app0)
+        {
+            string stamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff");
+            string name = string.Equals(Path.GetFullPath(app0).TrimEnd('\\'), Path.GetFullPath(Path.Combine(root, "app0")).TrimEnd('\\'),
+                                        StringComparison.OrdinalIgnoreCase) ? "app0" : "app0." + Path.GetFileName(app0);
+            return Path.Combine(root, name + ".previous-" + stamp);
         }
 
 
@@ -1305,8 +1213,11 @@ namespace RyGT
             WriteSetting("GPU", "readbacks_mode", 2);
             if (!LoadConfig().ContainsKey("General")) WriteSetting("General", "show_splash", true);
             // Photos: where the game's gallery Export writes pictures (FEAT-GT7-161), made now so
-            // players find it next to RyGT7.exe.
-            foreach (string folder in new[] { "_sd/local-data", "_sd/sce_sdmemory", "download0/APP_DATA", "temp", "temp0", "logs", "patches", "shaders", "Photos" })
+            // players find it in the ryGT7 folder.
+            // GAME-005: GT7's saves are in user/savedata/CUSA24769 (the runtime moves a folder's old _sd and
+            // download0 there at the first start; folders made here first, still empty, don't stop that).
+            string saves = "user/savedata/" + GameInfo.GT7.TitleId + "/";
+            foreach (string folder in new[] { saves + "_sd/local-data", saves + "_sd/sce_sdmemory", saves + "download0/APP_DATA", "temp", "temp0/" + GameInfo.GT7.TitleId, "logs", "patches", "shaders", "Photos" })
                 Directory.CreateDirectory(Path.Combine(root, folder));
             for (int i = 1000; i < 1004; i++)
                 foreach (string folder in new[] { "savedata", "trophy", "inputs" })
@@ -1338,10 +1249,12 @@ namespace RyGT
         void PlayGt7()
         {
             if (IsGameRunning()) { RefreshState(); return; }
+            MigrateGt7Serial(); // GAME-004
             if (!File.Exists(Exe)) { MessageBox.Show(this, "Press Set up first."); return; }
             // Without its data index GT7 closes right after the splash screen.
             string dataIndex = RuntimeReadsGameFolders() ? GameFile("contents\\gt.idx") : null;
-            if (dataIndex == null && File.Exists(Path.Combine(root, "app0", "contents", "gt.idx"))) dataIndex = Path.Combine(root, "app0", "contents", "gt.idx");
+            string linkedIndex = Path.Combine(App0Layout.Top(root, info.TitleId), "contents", "gt.idx");
+            if (dataIndex == null && File.Exists(linkedIndex)) dataIndex = linkedIndex;
             string dataProblem = dataIndex == null ? "is missing" : ReadProblem(dataIndex, -1);
             if (dataProblem != null)
             {
@@ -1365,7 +1278,7 @@ namespace RyGT
                         // rebuilt with it first (the dealerships said "Failed to get sales list" otherwise).
                         SetStatus("The Offline mode patch file changed since Set up; running Set up again...");
                         Log("patches\\" + GameLayout.TitleId + ".xml changed since Set up; running Set up again.");
-                        setupLogPath = LogFiles.Prepare(root, "setup.log");
+                        setupLogPath = LogFiles.Prepare(root, "setup.log", info.TitleId);
                         RunSetupGt7();
                     }
                     if (OldShaderCacheExists()) SetStatus("Moving your shaders to the shaders folder (once)...");
@@ -1399,7 +1312,7 @@ namespace RyGT
         static void StartGameGt7(string root)
         {
             string exe = Path.Combine(root, "GT7.exe");
-            // Folders set up by an earlier RyGT7.exe get the icon and the Windows subsystem now.
+            // Folders set up by an earlier launcher (RyGT7.exe) get the icon and the Windows subsystem now.
             try { if (!GameExe.IsPrepared(exe)) GameExe.PrepareGt7(exe); } catch { }
             ThreadPool.QueueUserWorkItem(delegate
             {
@@ -1409,11 +1322,11 @@ namespace RyGT
                     string logDirectory;
                     try
                     {
-                        logDirectory = LogFiles.PrepareRuntimeLogs(root);
+                        logDirectory = LogFiles.PrepareRuntimeLogs(root, GameInfo.Of(GameKind.GT7).TitleId);
                     }
                     catch (Exception e)
                     {
-                        AppendSetupLog(root, "Could not prepare game logs: " + e.Message);
+                        AppendSetupLog(root, GameInfo.GT7.TitleId, "Could not prepare game logs: " + e.Message);
                         return;
                     }
 
@@ -1423,6 +1336,8 @@ namespace RyGT
                         var start = new ProcessStartInfo(exe)
                         { WorkingDirectory = root, UseShellExecute = false };
                         start.EnvironmentVariables["RYGT_LOG_DIRECTORY"] = logDirectory;
+                        // GAME-004: the renderer and the runtime take the game from the launcher.
+                        start.EnvironmentVariables["SHADGT_GAME"] = "gt7";
                         start.EnvironmentVariables["RYTY_INTEROP_BASE"] = "8000000000";
                         // PERF-161: GT7's per-frame memory (0x200000000-0x208000000), which the CPU rewrites
                         // every frame and a few compute passes write too, stays in guest memory: kept in a
@@ -1495,13 +1410,13 @@ namespace RyGT
                             else start.EnvironmentVariables.Remove("RYGT_NEO_EXTRAS");
                         }
                         // FEAT-GTS-254: the Advanced page's switches and other variables last, so they win.
-                        int customCount = CustomEnvironment.Apply(start, new Settings(Path.Combine(root, "RyGT7.ini")).Env);
-                        if (customCount > 0) AppendSetupLog(root, customCount + " custom environment variable(s) applied.");
+                        int customCount = CustomEnvironment.Apply(start, new Settings(GameInfo.GT7.IniPath(root)).Env);
+                        if (customCount > 0) AppendSetupLog(root, GameInfo.GT7.TitleId, customCount + " custom environment variable(s) applied.");
                         started = Process.Start(start);
                     }
                     catch (Exception e)
                     {
-                        AppendSetupLog(root, "Could not start GT7: " + e.Message);
+                        AppendSetupLog(root, GameInfo.GT7.TitleId, "Could not start GT7: " + e.Message);
                         return;
                     }
                     if (started == null) return;
@@ -1509,13 +1424,13 @@ namespace RyGT
 
                     if (recoveredOnce || !RendererReportedDeviceLoss(logDirectory)) return;
                     recoveredOnce = true;
-                    AppendSetupLog(root, "Vulkan lost the GPU device. Waiting for Windows to restore the graphics device before restarting GT7.");
+                    AppendSetupLog(root, GameInfo.GT7.TitleId, "Vulkan lost the GPU device. Waiting for Windows to restore the graphics device before restarting GT7.");
                     if (!WaitForGraphicsDevice(TimeSpan.FromMinutes(2)))
                     {
-                        AppendSetupLog(root, "The graphics device did not recover within 2 minutes; GT7 was not restarted.");
+                        AppendSetupLog(root, GameInfo.GT7.TitleId, "The graphics device did not recover within 2 minutes; GT7 was not restarted.");
                         return;
                     }
-                    AppendSetupLog(root, "The graphics device is responding again. Restarting GT7 once; the interrupted session cannot be resumed.");
+                    AppendSetupLog(root, GameInfo.GT7.TitleId, "The graphics device is responding again. Restarting GT7 once; the interrupted session cannot be resumed.");
                 }
             });
         }

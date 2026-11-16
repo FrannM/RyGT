@@ -185,7 +185,7 @@ namespace RyGT
                 using (var form = new LoaderForm(GameKind.GT7, runtime))
                 {
                     typeof(LoaderForm).GetMethod("UseGt7GameFolders", BindingFlags.NonPublic | BindingFlags.Instance)
-                        .Invoke(form, new object[] { separate, converted });
+                        .Invoke(form, new object[] { separate, converted, app0 });
                 }
                 Check(File.ReadAllText(Path.Combine(app0, "sce_module", "libc.prx")) == "converted-library", "Converted module retained");
                 Check(Directory.EnumerateFileSystemEntries(app0).Select(Path.GetFileName).SequenceEqual(new[] { "sce_module" }),
@@ -205,12 +205,28 @@ namespace RyGT
                 using (var form = new LoaderForm(GameKind.GT7, runtime))
                 {
                     typeof(LoaderForm).GetMethod("LinkGameFiles", BindingFlags.NonPublic | BindingFlags.Instance)
-                        .Invoke(form, new object[] { separate, converted });
+                        .Invoke(form, new object[] { separate, converted, app0 });
                 }
                 Check(File.ReadAllText(Path.Combine(app0, "contents", "gt.idx")) == "updated index", "Linked update");
                 Check(File.ReadAllText(Path.Combine(app0, "nested", "base.txt")) == "base:nested\\base.txt", "Linked base fallback");
                 Check(File.ReadAllText(Path.Combine(app0, "sce_module", "libc.prx")) == "converted-library", "Converted module retained after linking");
                 foreach (string old in Directory.GetDirectories(runtime, "app0.previous-*")) Directory.Delete(old, true);
+                // FEAT-GTS-291: with the per-game layout Set up swaps app0\CUSA24769 and keeps the folder it
+                // replaced beside app0, never in it.
+                string own = App0Layout.Folder(runtime, GameLayout.TitleId);
+                Put(own, "sce_module\\libc.prx", "older-converted-library");
+                Put(own, "kept.txt", "a real file");
+                using (var form = new LoaderForm(GameKind.GT7, runtime))
+                {
+                    typeof(LoaderForm).GetMethod("UseGt7GameFolders", BindingFlags.NonPublic | BindingFlags.Instance)
+                        .Invoke(form, new object[] { separate, converted, own });
+                }
+                Check(File.ReadAllText(Path.Combine(own, "sce_module", "libc.prx")) == "converted-library", "app0\\CUSA24769 holds the new modules");
+                Check(Directory.GetDirectories(app0, "*.previous-*").Length == 0, "Nothing kept inside app0");
+                string[] keptOwn = Directory.GetDirectories(runtime, "app0." + GameLayout.TitleId + ".previous-*");
+                Check(keptOwn.Length == 1 && File.Exists(Path.Combine(keptOwn[0], "kept.txt")), "The replaced app0\\CUSA24769 kept beside app0");
+                Directory.Delete(keptOwn[0], true);
+                Directory.Delete(own, true);
                 File.Delete(Path.Combine(baseDir, "contents", "gt01.vol"));
                 Reject(() => new GameLayout(baseDir, null, runtime), "Missing base volumes accepted");
                 Check(!GameLayout.PatchKnownExecutable(new byte[64]), "Unknown executable patched");

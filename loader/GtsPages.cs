@@ -588,167 +588,6 @@ namespace RyGT
         }
 
 
-        /// FEAT-GTS-272: the update channel (Launcher.update_channel): stable (the newest release), prerelease
-        /// (the newest release or pre-release) or nightly (the newest build of development). Stable by default
-        /// (FIX-GTS-286: RyGTS publishes releases on GitHub now; it was nightly while there were none).
-        string UpdateChannel()
-        {
-            try
-            {
-                object section, value;
-                var launcher = LoadConfig().TryGetValue("Launcher", out section) ? section as Dictionary<string, object> : null;
-                string channel = launcher != null && launcher.TryGetValue("update_channel", out value) ? value as string : null;
-                return Array.IndexOf(Updater.Channels, channel) >= 0 ? channel : Updater.Stable;
-            }
-            catch { return Updater.Stable; }
-        }
-
-
-        static string ChannelName(string channel)
-        {
-            return channel == Updater.Nightly ? "nightly" : channel == Updater.Prerelease ? "release or prerelease" : "stable release";
-        }
-
-
-        /// Asks GitHub for the newest build on the update channel in the background; never holds up Play.
-        void CheckForUpdateGts(bool manual)
-        {
-            string installed = Updater.InstalledVersion(root);
-            if (installed == null)
-            {
-                if (manual) MessageBox.Show(this, "This launcher didn't come from a RyGTS package (it has no manifest.json or BUILD_INFO.txt), so it can't update itself.");
-                return;
-            }
-            string channel = UpdateChannel();
-            ThreadPool.QueueUserWorkItem(delegate
-            {
-                ReleaseInfo latest = null;
-                Exception error = null;
-                try { latest = Updater.Latest(channel); }
-                catch (Exception e) { error = e; }
-                try { BeginInvoke((Action)delegate { ShowUpdateGts(installed, channel, latest, error, manual); }); }
-                catch (InvalidOperationException) { } // closed meanwhile
-            });
-        }
-
-
-        void ShowUpdateGts(string installed, string channel, ReleaseInfo latest, Exception error, bool manual)
-        {
-            if (target != GameKind.GTSport) return; // FEAT-GTS-290: the game changed meanwhile
-            if (channel != UpdateChannel()) return; // the channel changed meanwhile; that check shows its own
-            if (latest != null && Updater.IsNewer(latest, installed, root)) // FIX-GTS-286: not the same build again
-            {
-                pendingUpdate = latest;
-                home.Notice = (latest.Artifact ? "A newer RyGTS nightly is available: " + Updater.Display(latest.Version)
-                                               : "RyGTS " + latest.Version + (latest.Prerelease ? " (prerelease)" : "") + " is available") +
-                              " (you have " + Updater.Display(installed) + ")." +
-                              (latest.Changes().Count > 0 ? "" : Environment.NewLine + latest.Summary(240)); // the notes are behind Changelog
-                updateButton.Text = "Update"; // the notice names the version; the button had no room for it
-                updateButton.Visible = true;
-                changelogButton.Visible = latest.Changes().Count > 0;
-                home.PerformLayout();
-                home.Invalidate(true);
-            }
-            else if (manual)
-            {
-                MessageBox.Show(this, error != null ? "Could not check for updates: " + error.Message
-                                    : latest == null && channel == Updater.Nightly ? "No nightly to update to was found (nightlies are kept for 7 days)."
-                                    : latest == null ? "No RyGTS " + ChannelName(channel) + " was found on GitHub."
-                                    : "RyGTS " + Updater.Display(installed) + " is the newest " + ChannelName(channel) + ".");
-            }
-        }
-
-
-        /// Downloads and installs the pending update, then restarts the launcher.
-        void InstallUpdateGts()
-        {
-            var release = pendingUpdate;
-            if (release == null || busy) return;
-            if (MessageBox.Show(this, "Update RyGTS to " + Updater.Display(release.Version) + (release.Prerelease ? " (prerelease)" : "") + "?" +
-                                Environment.NewLine + Environment.NewLine +
-                                "The launcher restarts when it is done. Your game, saves and settings are kept, and you can roll back " +
-                                "from Settings > About.", "Update RyGTS", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK)
-                return;
-            busy = true;
-            updateButton.Enabled = false;
-            play.Enabled = false;
-            string last = null;
-            ThreadPool.QueueUserWorkItem(delegate
-            {
-                Exception error = null;
-                try
-                {
-                    Updater.Install(root, release, (text, fraction) =>
-                    {
-                        if (text == last) return;
-                        last = text;
-                        BeginInvoke((Action)delegate { status.Text = text; });
-                    });
-                }
-                catch (Exception e) { error = e; }
-                BeginInvoke((Action)delegate
-                {
-                    busy = false;
-                    if (error == null) { Updater.Restart(root); return; }
-                    updateButton.Enabled = true;
-                    RefreshState();
-                    status.Text = "The update failed: " + error.Message;
-                    MessageBox.Show(this, "The update failed, and the launcher's files are as they were." + Environment.NewLine + error.Message);
-                });
-            });
-        }
-
-
-        /// Launcher updates: the check at start, the channel, a check now, and a roll back of the last update.
-        void AddUpdateSettingsGts(TableLayoutPanel panel)
-        {
-            AddOption(panel, "Check for updates at start", "Launcher", "check_updates", true);
-            var channelRow = new FlowLayoutPanel { AutoSize = true, BackColor = Color.Transparent, Margin = new Padding(0, 4, 0, 2), WrapContents = false };
-            var channelLabel = new Label { Text = "Update channel", AutoSize = false, Width = 196, Height = 20, BackColor = Color.Transparent, Margin = new Padding(0, 6, 8, 0) };
-            var channelBox = new DarkComboBox { Width = 230, DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat };
-            channelBox.Items.AddRange(new object[] { "Stable", "Prerelease", "Nightly" });
-            channelBox.SelectedIndex = Array.IndexOf(Updater.Channels, UpdateChannel());
-            channelBox.SelectedIndexChanged += delegate
-            {
-                try { WriteSetting("Launcher", "update_channel", Updater.Channels[channelBox.SelectedIndex]); }
-                catch (Exception e) { MessageBox.Show(this, "Could not save the setting: " + e.Message); return; }
-                // What was found on the old channel no longer applies.
-                ClearUpdate();
-                if (ReadSetting("Launcher", "check_updates", true)) CheckForUpdate(false);
-            };
-            channelRow.Controls.Add(channelLabel);
-            channelRow.Controls.Add(channelBox);
-            panel.Controls.Add(channelRow);
-            var row = new FlowLayoutPanel { AutoSize = true, BackColor = Color.Transparent, Margin = new Padding(0, 4, 0, 2), WrapContents = false };
-            string installed = Updater.InstalledVersion(root);
-            var label = new Label
-            {
-                Text = "Launcher " + LauncherVersion.Value + (installed == null ? "" : " (" + Updater.Display(installed) + ")"),
-                AutoSize = true, MinimumSize = new Size(196, 20), BackColor = Color.Transparent, Margin = new Padding(0, 6, 8, 0) // FIX-GTS-286: not cut off
-            };
-            var check = new Button { Text = "Check now", AutoSize = true, Margin = new Padding(0, 0, 6, 0) };
-            check.Click += delegate { CheckForUpdate(true); };
-            var last = Updater.LastUpdate(root);
-            var rollBack = new Button { Text = last == null ? "Roll back" : "Roll back to " + Updater.Display(last.Item2), AutoSize = true, Enabled = last != null, Margin = new Padding(0) };
-            rollBack.Click += delegate
-            {
-                if (busy) return;
-                if (MessageBox.Show(this, "Put back RyGTS " + Updater.Display(last.Item2) + " (as before the update to " + Updater.Display(last.Item3) +
-                                    ") and restart the launcher?", "Roll back", MessageBoxButtons.OKCancel) != DialogResult.OK)
-                    return;
-                try { Updater.RollBack(root); Updater.Restart(root); }
-                catch (Exception e) { MessageBox.Show(this, "Could not roll back: " + e.Message); }
-            };
-            row.Controls.Add(label);
-            row.Controls.Add(check);
-            row.Controls.Add(rollBack);
-            panel.Controls.Add(row);
-            panel.Controls.Add(Hint("Stable is the newest release on GitHub, Prerelease the newest release or prerelease, and Nightly " +
-                                    "the newest build of development (downloaded through nightly.link; nightlies are kept for 7 days). " +
-                                    "No GitHub account is needed. Your game, saves, settings and caches are never touched."));
-        }
-
-
         void OpenBindings()
         {
             using (var form = new ControlsForm(root, Math.Max(1, ReadIntSetting("Input", "keyboard_player", 1)),
@@ -961,7 +800,7 @@ namespace RyGT
 
 
         // FEAT-GTS-469: like RPCS3's "Remove obsolete settings?", offer to drop config entries nothing
-        // reads any more (ObsoleteSettings.cs). "Don't show again" is kept in RyGT.ini (prompt_obsolete).
+        // reads any more (ObsoleteSettings.cs). "Don't show again" is kept in CUSA03220.RyGT.ini (prompt_obsolete).
         // FEAT-GTS-275: and to rename the Advanced page's switches saved under a name the installed build no
         // longer reads (RYGT_PARALLEL_WORKERS, now SHADGT_PARALLEL_WORKERS). Reading the modules takes
         // a moment, so it runs off the window's thread.
@@ -1120,7 +959,7 @@ namespace RyGT
 
         void RefreshStateGts()
         {
-            bool ready = File.Exists(Exe) && Directory.Exists(Path.Combine(root, "app0", "sce_module"));
+            bool ready = File.Exists(Exe) && Directory.Exists(Path.Combine(App0Layout.Top(root, info.TitleId), "sce_module"));
             play.Enabled = ready && !busy;
             if (setup != null) setup.Enabled = !busy;
             if (addDlss != null) addDlss.Enabled = !busy;
@@ -1179,7 +1018,7 @@ namespace RyGT
 
             // 1. The executable and modules to convert, unwrapped to plain ELF.
             SetStatus("Preparing the game files...");
-            string work = Path.Combine(root, "convert");
+            string work = info.OwnFolder(root, "convert"); // FEAT-GTS-291: convert\CUSA03220
             string workModules = Path.Combine(work, "sce_module");
             if (Directory.Exists(workModules)) Directory.Delete(workModules, true);
             Directory.CreateDirectory(workModules);
@@ -1203,17 +1042,24 @@ namespace RyGT
             if (!File.Exists(converter)) throw new Exception("converter\\ryty.exe is missing from the RyGTS folder.");
             string staging = Path.Combine(work, "game-rebuild");
             string stagedExe = Path.Combine(staging, "GTSport.exe");
-            string stagedModules = Path.Combine(staging, "app0", "sce_module");
+            // FEAT-GTS-291: the converted modules go in app0\CUSA03220 (App0Layout), and GTSport.exe loads them from there.
+            bool perGame = App0Layout.Supported(root);
+            string app0Option;
+            string app0Target = App0Layout.SetupFolder(root, info.TitleId, perGame, out app0Option);
+            string stagedModules = Path.Combine(perGame ? App0Layout.Folder(staging, info.TitleId) : Path.Combine(staging, "app0"), "sce_module");
+            if (!perGame) Log("Note: this folder's converter or runtime libraries predate app0\\" + info.TitleId + "; the converted modules go in app0 as before.");
             Directory.CreateDirectory(stagedModules);
-            int code = Run(converter, "--windows --ps4 --skip-syscall-check --registry --report \"" +
+            int code = Run(converter, "--windows --ps4 --skip-syscall-check --registry" + app0Option + " --report \"" +
                 Path.Combine(work, "port-report.json") + "\" \"" + Path.Combine(work, "eboot.elf") + "\" \"" + stagedExe + "\"", work);
             if (code != 0 || !File.Exists(stagedExe)) throw new Exception("The converter failed (exit code " + code + ").");
             GameExe.Prepare(stagedExe);
             GameExe.ApplyVersionInfo(stagedExe);
             // Keep the previous executable until conversion and preparation have both succeeded.
-            Directory.CreateDirectory(Path.Combine(root, "app0", "sce_module"));
+            // The new GTSport.exe loads app0\CUSA03220\sce_module: the folder's older app0 moves there first.
+            if (perGame) foreach (string note in App0Layout.Migrate(root, info, true)) Log(note);
+            Directory.CreateDirectory(Path.Combine(app0Target, "sce_module"));
             foreach (string module in Directory.GetFiles(stagedModules))
-                File.Copy(module, Path.Combine(root, "app0", "sce_module", Path.GetFileName(module)), true);
+                File.Copy(module, Path.Combine(app0Target, "sce_module", Path.GetFileName(module)), true);
             string registry = Path.Combine(staging, "GTSport.registry.json");
             if (File.Exists(registry)) File.Copy(registry, Path.Combine(root, "GTSport.registry.json"), true);
             if (File.Exists(Exe)) File.Replace(stagedExe, Exe, null);
@@ -1485,14 +1331,14 @@ namespace RyGT
 
 
         // FEAT-GTS-259: the game reads /app0 straight from the update and base game folders (named in
-        // RyGT.ini; see core/libs/prx/libc/include/AppOverlay.hpp), so nothing is linked into app0 any
+        // CUSA03220.RyGT.ini; see core/libs/prx/libc/include/AppOverlay.hpp), so nothing is linked into app0 any
         // more. Set up from earlier versions linked every game file there (hard links, which Explorer
         // counts as a second copy of the game); those links are removed. Only links are: a file is
         // removed only when it is the game's own file (the same file on disk, or a link to it), a
         // folder only when it is a junction or link. Copies and anything else are left alone.
         void UseGameFoldersDirectly(string baseDir, string updateDir)
         {
-            RemoveGameLinks(Path.Combine(root, "app0"), baseDir, updateDir, Log);
+            RemoveGameLinks(App0Layout.Top(root, info.TitleId), baseDir, updateDir, Log);
             Log("The game reads its files from " + (updateDir != null ? updateDir + " and " : "") + baseDir + ".");
         }
 
@@ -1592,7 +1438,7 @@ namespace RyGT
                         !ReadSetting("Vulkan", "pipeline_cache_enabled", true))
                         WriteSetting("Vulkan", "pipeline_cache_enabled", true);
                     RequireGameClosedForShaderPreparation();
-                    // Folders set up by an earlier RyGTS.exe or adcpatch get the offline livery scripts
+                    // Folders set up by an earlier launcher (RyGTS.exe) or adcpatch get the offline livery scripts
                     // (again) now (a few seconds).
                     if (GameScriptsOutdated() && Directory.Exists(gameDir))
                     {
@@ -1649,7 +1495,7 @@ namespace RyGT
         {
             string exe = Path.Combine(root, "GTSport.exe");
             // Preserve GT Sport metadata while migrating the launcher publisher field from older installs.
-            try { GameExe.ApplyVersionInfo(exe); } catch (Exception e) { AppendSetupLog(root, "Could not update game publisher metadata: " + e.Message); }
+            try { GameExe.ApplyVersionInfo(exe); } catch (Exception e) { AppendSetupLog(root, GameInfo.GTSport.TitleId, "Could not update game publisher metadata: " + e.Message); }
             // Folders set up by an earlier RyGT launcher get the icon and Windows subsystem now.
             try { if (!GameExe.IsPrepared(exe)) GameExe.Prepare(exe); } catch { }
             ThreadPool.QueueUserWorkItem(delegate { AmdSoftware.EnsureGameEntry(root, exe); });
@@ -1661,11 +1507,11 @@ namespace RyGT
                     string logDirectory;
                     try
                     {
-                        logDirectory = LogFiles.PrepareRuntimeLogs(root);
+                        logDirectory = LogFiles.PrepareRuntimeLogs(root, GameInfo.Of(GameKind.GTSport).TitleId);
                     }
                     catch (Exception e)
                     {
-                        AppendSetupLog(root, "Could not prepare game logs: " + e.Message);
+                        AppendSetupLog(root, GameInfo.GTSport.TitleId, "Could not prepare game logs: " + e.Message);
                         return;
                     }
 
@@ -1676,6 +1522,8 @@ namespace RyGT
                         { WorkingDirectory = root, UseShellExecute = false };
                         RenderResolution.ConfigureStart(start, root, sceneSize);
                         start.EnvironmentVariables["RYGT_LOG_DIRECTORY"] = logDirectory;
+                        // GAME-004: the renderer and the runtime take the game from the launcher.
+                        start.EnvironmentVariables["SHADGT_GAME"] = "gts";
                         start.EnvironmentVariables["RYGT_HDD_STREAMING"] = hddStreaming ? "1" : "0";
                         start.EnvironmentVariables["SHADGT_ANTI_LAG"] = antiLag ? "1" : "0"; // PERF-210
                         start.EnvironmentVariables["SHADGT_SHADER_OBJECT"] = shaderObjects ? "1" : "0";
@@ -1702,12 +1550,12 @@ namespace RyGT
                         if (compilePack) start.EnvironmentVariables["SHADGT_COMPILE_PACK"] = "1";
                         // FEAT-GTS-433: the user's list last, so it wins; only the count is logged.
                         int custom = CustomEnvironment.Apply(start, customEnv);
-                        if (custom > 0) AppendSetupLog(root, custom + " custom environment variable(s) applied.");
+                        if (custom > 0) AppendSetupLog(root, GameInfo.GTSport.TitleId, custom + " custom environment variable(s) applied.");
                         started = Process.Start(start);
                     }
                     catch (Exception e)
                     {
-                        AppendSetupLog(root, "Could not start GT Sport: " + e.Message);
+                        AppendSetupLog(root, GameInfo.GTSport.TitleId, "Could not start GT Sport: " + e.Message);
                         return;
                     }
                     if (started == null) return;
@@ -1715,13 +1563,13 @@ namespace RyGT
 
                     if (recoveredOnce || !RendererReportedDeviceLoss(logDirectory)) return;
                     recoveredOnce = true;
-                    AppendSetupLog(root, "Vulkan lost the GPU device. Waiting for Windows to restore the graphics device before restarting GT Sport.");
+                    AppendSetupLog(root, GameInfo.GTSport.TitleId, "Vulkan lost the GPU device. Waiting for Windows to restore the graphics device before restarting GT Sport.");
                     if (!WaitForGraphicsDevice(TimeSpan.FromMinutes(2)))
                     {
-                        AppendSetupLog(root, "The graphics device did not recover within 2 minutes; GT Sport was not restarted.");
+                        AppendSetupLog(root, GameInfo.GTSport.TitleId, "The graphics device did not recover within 2 minutes; GT Sport was not restarted.");
                         return;
                     }
-                    AppendSetupLog(root, "The graphics device is responding again. Restarting GT Sport once; the interrupted session cannot be resumed.");
+                    AppendSetupLog(root, GameInfo.GTSport.TitleId, "The graphics device is responding again. Restarting GT Sport once; the interrupted session cannot be resumed.");
                 }
             });
         }

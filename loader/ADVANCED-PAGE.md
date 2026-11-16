@@ -60,7 +60,7 @@ is built the first time it is opened, not when the launcher starts.
 The Profile row above the table keeps named sets of the page's settings, to swap between
 configurations. **Save...** asks for a name (the selected profile's, to overwrite it) and writes the
 current switches and other variables to `launcher\profiles\<name>.ini`: a comment line and the same
-`env=<1|0>|NAME=VALUE` lines as `RyGT.ini`, so a profile can be copied or shared as a file. **Load**
+`env=<1|0>|NAME=VALUE` lines as the game's `<serial>.RyGT.ini`, so a profile can be copied or shared as a file. **Load**
 replaces the current settings with the selected profile's (after asking) and builds the page again,
 keeping the search and filters. A profile holds everything the page sets; switches it does not name
 are at their defaults after loading it.
@@ -72,11 +72,11 @@ letters, digits and `_`; other names are flagged and not saved. An empty value r
 
 ## Storage and launch
 
-Everything is saved as you change it, as `env=<1|0>|NAME=VALUE` lines in `RyGT.ini` (the game's
+Everything is saved as you change it, as `env=<1|0>|NAME=VALUE` lines in `<serial>.RyGT.ini` (the game's
 `user\custom_configs\CUSA03220.json` is not touched). When the launcher starts `GTSport.exe` (and on
 the device-loss relaunch) the entries are applied after the launcher's own variables, so they win.
 Only a count is written to the setup log, never values.
 
-To confirm the switches reach the game: `setup.log` gets "N custom environment variable(s) applied." when
+To confirm the switches reach the game: `logs\<serial>\setup.log` gets "N custom environment variable(s) applied." when
 the launcher starts `GTSport.exe`; then set one whose effect you can see (for example a rendering switch
 from its tooltip) and compare.
