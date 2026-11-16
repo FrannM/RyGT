@@ -41,6 +41,7 @@ class IsolatedWorkflowFiles(unittest.TestCase):
         })
         environment.start(); self.addCleanup(environment.stop)
         os.environ.pop('CI_CHANNEL', None)
+        os.environ.pop('GITHUB_TOKEN', None)  # FIX-GTS-295: requests stay plain URLs here
 
 
 class RendererRevisionTests(IsolatedWorkflowFiles):
