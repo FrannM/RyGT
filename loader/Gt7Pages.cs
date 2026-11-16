@@ -1307,8 +1307,8 @@ namespace RyGT
         }
 
 
-        /// Starts GT7.exe with session log rotation and waits for GPU recovery if Vulkan loses
-        /// its device.
+        /// Starts GT7.exe once, with session log rotation; after a GPU device loss it is not started
+        /// again (FIX-GTS-491), the setup log says so.
         static void StartGameGt7(string root)
         {
             string exe = Path.Combine(root, "GT7.exe");
@@ -1316,122 +1316,114 @@ namespace RyGT
             try { if (!GameExe.IsPrepared(exe)) GameExe.PrepareGt7(exe); } catch { }
             ThreadPool.QueueUserWorkItem(delegate
             {
-                bool recoveredOnce = false;
-                while (true)
+                string logDirectory;
+                try
                 {
-                    string logDirectory;
-                    try
-                    {
-                        logDirectory = LogFiles.PrepareRuntimeLogs(root, GameInfo.Of(GameKind.GT7).TitleId);
-                    }
-                    catch (Exception e)
-                    {
-                        AppendSetupLog(root, GameInfo.GT7.TitleId, "Could not prepare game logs: " + e.Message);
-                        return;
-                    }
-
-                    Process started;
-                    try
-                    {
-                        var start = new ProcessStartInfo(exe)
-                        { WorkingDirectory = root, UseShellExecute = false };
-                        start.EnvironmentVariables["RYGT_LOG_DIRECTORY"] = logDirectory;
-                        // GAME-004: the renderer and the runtime take the game from the launcher.
-                        start.EnvironmentVariables["SHADGT_GAME"] = "gt7";
-                        start.EnvironmentVariables["RYTY_INTEROP_BASE"] = "8000000000";
-                        // PERF-161: GT7's per-frame memory (0x200000000-0x208000000), which the CPU rewrites
-                        // every frame and a few compute passes write too, stays in guest memory: kept in a
-                        // renderer region, each CPU write faulted (about 60,000 a second) and was copied in.
-                        start.EnvironmentVariables["RYGT_NATIVE_INPLACE_RANGES"] = "1020000000+1de000,1020235000+1dd000,1020407000+b000,200000000+8000000";
-                        // FIX-213: GT7 reads back what the GPU writes into its CPU pools from 0xe000000000
-                        // up (GT Sport's are above 0xf000000000, the renderer's default); kept in a
-                        // renderer region, the CPU saw stale data and culled the whole rear-view mirror.
-                        start.EnvironmentVariables["RYGT_NATIVE_INPLACE_FROM"] = "e000000000";
-                        start.EnvironmentVariables["SHADGT_FPS_LOCK"] = RaceFpsLock(root).ToString();
-                        // Shader cache size and the AMD graphics fix from the Graphics page.
-                        start.EnvironmentVariables["RYGT_DRIVER_CACHE_MAX_MB"] = DriverCacheMaxMb(root).ToString();
-                        start.EnvironmentVariables["RYGT_AMD_SINGLE_SAMPLE_BARYCENTRIC"] =
-                            GpuSetting(root, "amd_graphics_fix") is bool && (bool)GpuSetting(root, "amd_graphics_fix") ? "1" : "0";
-                        // PERF-GT7-111/117 from the Graphics page: each shader translation leaves a record
-                        // (shaders\<serial>.manifest) and its code (shaders\<serial>.capture, this PC's only);
-                        // at start, the ones the shader store lacks (after a renderer update) are translated
-                        // again in the background, so the races after an update start as warm ones.
-                        // Only when checked (like the compile pack below): a launcher script that
-                        // sets them itself keeps its setting.
-                        if (GpuSetting(root, "shader_pretranslate") is bool && (bool)GpuSetting(root, "shader_pretranslate"))
-                        {
-                            start.EnvironmentVariables["RYGT_MANIFEST_RECORD"] = "1";
-                            start.EnvironmentVariables["RYGT_MANIFEST_PRETRANSLATE"] = "1";
-                        }
-                        // PERF-GT7-108 from the Graphics page: the pipelines this PC's driver cache lacks (after
-                        // a driver update) are compiled at start from the recipes kept in the compile pack.
-                        // Only when checked: Jouer-Compile-Pack.cmd sets it itself before starting this launcher.
-                        if (GpuSetting(root, "compile_pack") is bool && (bool)GpuSetting(root, "compile_pack"))
-                            start.EnvironmentVariables["RYGT_COMPILE_PACK"] = "1";
-                        // DLSS frame multiplier from the Graphics page (generated frames, 1-5).
-                        start.EnvironmentVariables["RYGT_DLSSG_FRAMES"] = DlssgFrames(root).ToString();
-                        // Upscaling quality from the Graphics page (the size DLSS and FSR 3.1 scale to).
-                        start.EnvironmentVariables["RYGT_UPSCALE_QUALITY"] = GpuSetting(root, "upscale_quality") as string ?? "auto";
-                        // Texture sharpness from the Graphics page (detail levels added to every sampler's bias).
-                        start.EnvironmentVariables["RYGT_TEXTURE_LOD_BIAS"] = GpuSetting(root, "texture_lod_bias") as string ?? "0";
-                        // FEAT-GT7-181: DLSS texture detail from the Graphics page. Reduced: the bias without its -1;
-                        // Off: no bias; Full sets nothing. A renderer without these switches ignores them.
-                        string dlssBias, dlssExtra;
-                        DlssDetailVariables(GpuSetting(root, "dlss_texture_detail") as string, out dlssBias, out dlssExtra);
-                        if (dlssBias != null) start.EnvironmentVariables["RYGT_DLSS_TEMPORAL_MIP_BIAS"] = dlssBias;
-                        if (dlssExtra != null) start.EnvironmentVariables["RYGT_DLSS_TEMPORAL_MIP_EXTRA"] = dlssExtra;
-                        // PS4 Pro mode from the Graphics page (NEO-GT7). PS4 (off) sets nothing, so a launcher
-                        // script's own values stay. The other modes set or remove all three variables themselves:
-                        // RYGT_NEO=1 with the checkerboard (4K TV, Full, Custom with its box), plus RYGT_NEO_TV=1080
-                        // for the 1080p TV; RYGT_NEO_EXTRAS lists the five other settings when they differ from what
-                        // the game picks by itself (none in the PS4 and 4K TV presets, all five in the 1080p TV one).
-                        // The modes other than custom are read as the console has them, not from the boxes.
-                        string proSetting = GpuSetting(root, "ps4_pro_mode") as string ?? "off";
-                        if (proSetting == "4k" || proSetting == "1080p" || proSetting == "full" || proSetting == "custom")
-                        {
-                            Func<string, bool> proBox = key => { object on = GpuSetting(root, key); return on is bool && (bool)on; };
-                            bool custom = proSetting == "custom";
-                            bool tv1080 = proSetting == "1080p";
-                            bool neo = tv1080 || (custom ? proBox("ps4_pro_checkerboard") : true);
-                            if (neo) start.EnvironmentVariables["RYGT_NEO"] = "1";
-                            else start.EnvironmentVariables.Remove("RYGT_NEO");
-                            if (tv1080) start.EnvironmentVariables["RYGT_NEO_TV"] = "1080";
-                            else start.EnvironmentVariables.Remove("RYGT_NEO_TV");
-                            var proOptionsOn = new List<string>();
-                            var proOptionNames = new[] { "ps4_pro_blur", "blur", "ps4_pro_replays60", "replays60",
-                                                         "ps4_pro_replay_blur", "replayblur", "ps4_pro_garage60", "garage60",
-                                                         "ps4_pro_lod", "lod" };
-                            for (int i = 0; i < proOptionNames.Length; i += 2)
-                            {
-                                bool on = custom ? proBox(proOptionNames[i]) : proSetting == "full";
-                                if (on) proOptionsOn.Add(proOptionNames[i + 1]);
-                            }
-                            if (proOptionsOn.Count != 0) start.EnvironmentVariables["RYGT_NEO_EXTRAS"] = string.Join(",", proOptionsOn);
-                            else start.EnvironmentVariables.Remove("RYGT_NEO_EXTRAS");
-                        }
-                        // FEAT-GTS-254: the Advanced page's switches and other variables last, so they win.
-                        int customCount = CustomEnvironment.Apply(start, new Settings(GameInfo.GT7.IniPath(root)).Env);
-                        if (customCount > 0) AppendSetupLog(root, GameInfo.GT7.TitleId, customCount + " custom environment variable(s) applied.");
-                        started = Process.Start(start);
-                    }
-                    catch (Exception e)
-                    {
-                        AppendSetupLog(root, GameInfo.GT7.TitleId, "Could not start GT7: " + e.Message);
-                        return;
-                    }
-                    if (started == null) return;
-                    using (Process game = started) game.WaitForExit();
-
-                    if (recoveredOnce || !RendererReportedDeviceLoss(logDirectory)) return;
-                    recoveredOnce = true;
-                    AppendSetupLog(root, GameInfo.GT7.TitleId, "Vulkan lost the GPU device. Waiting for Windows to restore the graphics device before restarting GT7.");
-                    if (!WaitForGraphicsDevice(TimeSpan.FromMinutes(2)))
-                    {
-                        AppendSetupLog(root, GameInfo.GT7.TitleId, "The graphics device did not recover within 2 minutes; GT7 was not restarted.");
-                        return;
-                    }
-                    AppendSetupLog(root, GameInfo.GT7.TitleId, "The graphics device is responding again. Restarting GT7 once; the interrupted session cannot be resumed.");
+                    logDirectory = LogFiles.PrepareRuntimeLogs(root, GameInfo.Of(GameKind.GT7).TitleId);
                 }
+                catch (Exception e)
+                {
+                    AppendSetupLog(root, GameInfo.GT7.TitleId, "Could not prepare game logs: " + e.Message);
+                    return;
+                }
+
+                Process started;
+                try
+                {
+                    var start = new ProcessStartInfo(exe)
+                    { WorkingDirectory = root, UseShellExecute = false };
+                    start.EnvironmentVariables["RYGT_LOG_DIRECTORY"] = logDirectory;
+                    // GAME-004: the renderer and the runtime take the game from the launcher.
+                    start.EnvironmentVariables["SHADGT_GAME"] = "gt7";
+                    start.EnvironmentVariables["RYTY_INTEROP_BASE"] = "8000000000";
+                    // PERF-161: GT7's per-frame memory (0x200000000-0x208000000), which the CPU rewrites
+                    // every frame and a few compute passes write too, stays in guest memory: kept in a
+                    // renderer region, each CPU write faulted (about 60,000 a second) and was copied in.
+                    start.EnvironmentVariables["RYGT_NATIVE_INPLACE_RANGES"] = "1020000000+1de000,1020235000+1dd000,1020407000+b000,200000000+8000000";
+                    // FIX-213: GT7 reads back what the GPU writes into its CPU pools from 0xe000000000
+                    // up (GT Sport's are above 0xf000000000, the renderer's default); kept in a
+                    // renderer region, the CPU saw stale data and culled the whole rear-view mirror.
+                    start.EnvironmentVariables["RYGT_NATIVE_INPLACE_FROM"] = "e000000000";
+                    start.EnvironmentVariables["SHADGT_FPS_LOCK"] = RaceFpsLock(root).ToString();
+                    // Shader cache size and the AMD graphics fix from the Graphics page.
+                    start.EnvironmentVariables["RYGT_DRIVER_CACHE_MAX_MB"] = DriverCacheMaxMb(root).ToString();
+                    start.EnvironmentVariables["RYGT_AMD_SINGLE_SAMPLE_BARYCENTRIC"] =
+                        GpuSetting(root, "amd_graphics_fix") is bool && (bool)GpuSetting(root, "amd_graphics_fix") ? "1" : "0";
+                    // PERF-GT7-111/117 from the Graphics page: each shader translation leaves a record
+                    // (shaders\<serial>.manifest) and its code (shaders\<serial>.capture, this PC's only);
+                    // at start, the ones the shader store lacks (after a renderer update) are translated
+                    // again in the background, so the races after an update start as warm ones.
+                    // Only when checked (like the compile pack below): a launcher script that
+                    // sets them itself keeps its setting.
+                    if (GpuSetting(root, "shader_pretranslate") is bool && (bool)GpuSetting(root, "shader_pretranslate"))
+                    {
+                        start.EnvironmentVariables["RYGT_MANIFEST_RECORD"] = "1";
+                        start.EnvironmentVariables["RYGT_MANIFEST_PRETRANSLATE"] = "1";
+                    }
+                    // PERF-GT7-108 from the Graphics page: the pipelines this PC's driver cache lacks (after
+                    // a driver update) are compiled at start from the recipes kept in the compile pack.
+                    // Only when checked: Jouer-Compile-Pack.cmd sets it itself before starting this launcher.
+                    if (GpuSetting(root, "compile_pack") is bool && (bool)GpuSetting(root, "compile_pack"))
+                        start.EnvironmentVariables["RYGT_COMPILE_PACK"] = "1";
+                    // DLSS frame multiplier from the Graphics page (generated frames, 1-5).
+                    start.EnvironmentVariables["RYGT_DLSSG_FRAMES"] = DlssgFrames(root).ToString();
+                    // Upscaling quality from the Graphics page (the size DLSS and FSR 3.1 scale to).
+                    start.EnvironmentVariables["RYGT_UPSCALE_QUALITY"] = GpuSetting(root, "upscale_quality") as string ?? "auto";
+                    // Texture sharpness from the Graphics page (detail levels added to every sampler's bias).
+                    start.EnvironmentVariables["RYGT_TEXTURE_LOD_BIAS"] = GpuSetting(root, "texture_lod_bias") as string ?? "0";
+                    // FEAT-GT7-181: DLSS texture detail from the Graphics page. Reduced: the bias without its -1;
+                    // Off: no bias; Full sets nothing. A renderer without these switches ignores them.
+                    string dlssBias, dlssExtra;
+                    DlssDetailVariables(GpuSetting(root, "dlss_texture_detail") as string, out dlssBias, out dlssExtra);
+                    if (dlssBias != null) start.EnvironmentVariables["RYGT_DLSS_TEMPORAL_MIP_BIAS"] = dlssBias;
+                    if (dlssExtra != null) start.EnvironmentVariables["RYGT_DLSS_TEMPORAL_MIP_EXTRA"] = dlssExtra;
+                    // PS4 Pro mode from the Graphics page (NEO-GT7). PS4 (off) sets nothing, so a launcher
+                    // script's own values stay. The other modes set or remove all three variables themselves:
+                    // RYGT_NEO=1 with the checkerboard (4K TV, Full, Custom with its box), plus RYGT_NEO_TV=1080
+                    // for the 1080p TV; RYGT_NEO_EXTRAS lists the five other settings when they differ from what
+                    // the game picks by itself (none in the PS4 and 4K TV presets, all five in the 1080p TV one).
+                    // The modes other than custom are read as the console has them, not from the boxes.
+                    string proSetting = GpuSetting(root, "ps4_pro_mode") as string ?? "off";
+                    if (proSetting == "4k" || proSetting == "1080p" || proSetting == "full" || proSetting == "custom")
+                    {
+                        Func<string, bool> proBox = key => { object on = GpuSetting(root, key); return on is bool && (bool)on; };
+                        bool custom = proSetting == "custom";
+                        bool tv1080 = proSetting == "1080p";
+                        bool neo = tv1080 || (custom ? proBox("ps4_pro_checkerboard") : true);
+                        if (neo) start.EnvironmentVariables["RYGT_NEO"] = "1";
+                        else start.EnvironmentVariables.Remove("RYGT_NEO");
+                        if (tv1080) start.EnvironmentVariables["RYGT_NEO_TV"] = "1080";
+                        else start.EnvironmentVariables.Remove("RYGT_NEO_TV");
+                        var proOptionsOn = new List<string>();
+                        var proOptionNames = new[] { "ps4_pro_blur", "blur", "ps4_pro_replays60", "replays60",
+                                                     "ps4_pro_replay_blur", "replayblur", "ps4_pro_garage60", "garage60",
+                                                     "ps4_pro_lod", "lod" };
+                        for (int i = 0; i < proOptionNames.Length; i += 2)
+                        {
+                            bool on = custom ? proBox(proOptionNames[i]) : proSetting == "full";
+                            if (on) proOptionsOn.Add(proOptionNames[i + 1]);
+                        }
+                        if (proOptionsOn.Count != 0) start.EnvironmentVariables["RYGT_NEO_EXTRAS"] = string.Join(",", proOptionsOn);
+                        else start.EnvironmentVariables.Remove("RYGT_NEO_EXTRAS");
+                    }
+                    // FEAT-GTS-254: the Advanced page's switches and other variables last, so they win.
+                    int customCount = CustomEnvironment.Apply(start, new Settings(GameInfo.GT7.IniPath(root)).Env);
+                    if (customCount > 0) AppendSetupLog(root, GameInfo.GT7.TitleId, customCount + " custom environment variable(s) applied.");
+                    started = Process.Start(start);
+                }
+                catch (Exception e)
+                {
+                    AppendSetupLog(root, GameInfo.GT7.TitleId, "Could not start GT7: " + e.Message);
+                    return;
+                }
+                if (started == null) return;
+                using (Process game = started) game.WaitForExit();
+
+                // FIX-GTS-491: after a GPU device loss the game is not started again. The interrupted
+                // session could not be resumed anyway, and the restart hid the crash from the player
+                // and ran a second session under the first one's launch (tests mixed the two).
+                if (RendererReportedDeviceLoss(logDirectory))
+                    AppendSetupLog(root, GameInfo.GT7.TitleId, "Vulkan lost the GPU device (" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "); GT7 was closed and is not started again. Its log: " + Path.Combine(logDirectory, "stdout.log") + ", renamed stdout.log.<UTC time> at the next start (the first one after this time).");
             });
         }
     }

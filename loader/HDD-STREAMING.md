@@ -2,7 +2,7 @@
 
 Settings > Graphics > Storage > HDD streaming read-ahead (experimental).
 Default: off. Saved as `hdd_streaming=0/1` in `CUSA03220.RyGT.ini` (`RyGT.ini` before FEAT-GTS-291). Restart the game after changing it.
-The launcher sets `RYGT_HDD_STREAMING=1` or `0` explicitly for the game and device-loss relaunch.
+The launcher sets `RYGT_HDD_STREAMING=1` or `0` explicitly for the game.
 Direct launches may set the environment variable themselves.
 
 Requires the matching libkernel.prx; a launcher-only update cannot change file I/O.

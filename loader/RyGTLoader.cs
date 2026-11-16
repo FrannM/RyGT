@@ -69,11 +69,6 @@ namespace RyGT
 
         [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
         public static extern int SetWindowTheme(IntPtr window, string appName, string idList);
-
-        [DllImport("d3d11.dll", CallingConvention = CallingConvention.StdCall)]
-        public static extern int D3D11CreateDevice(IntPtr adapter, int driverType, IntPtr software,
-            uint flags, IntPtr featureLevels, uint featureLevelsCount, uint sdkVersion,
-            out IntPtr device, out int featureLevel, out IntPtr immediateContext);
     }
 
     /// Wine (Linux, Steam Proton): its kernel32 has wine_get_unix_file_name. Wine before 11 cannot
@@ -4200,33 +4195,6 @@ namespace RyGT
                 }
             }
             catch { return false; }
-        }
-
-
-        static bool WaitForGraphicsDevice(TimeSpan timeout)
-        {
-            var deadline = DateTime.UtcNow + timeout;
-            while (DateTime.UtcNow < deadline)
-            {
-                IntPtr device = IntPtr.Zero, context = IntPtr.Zero;
-                try
-                {
-                    // A fresh hardware D3D11 device is a small probe that the Windows display
-                    // driver has recovered. Driver type 1 is HARDWARE; SDK version is 7.
-                    int featureLevel;
-                    int result = Native.D3D11CreateDevice(IntPtr.Zero, 1, IntPtr.Zero, 0,
-                        IntPtr.Zero, 0, 7, out device, out featureLevel, out context);
-                    if (result >= 0) return true;
-                }
-                catch { }
-                finally
-                {
-                    if (context != IntPtr.Zero) Marshal.Release(context);
-                    if (device != IntPtr.Zero) Marshal.Release(device);
-                }
-                Thread.Sleep(2000);
-            }
-            return false;
         }
 
 
