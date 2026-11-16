@@ -7,7 +7,7 @@
 #include "prx/libSceHttp/src/Bridge.hpp"
 #include "prx/libSceHttp/src/HttpErrors.hpp"
 
-// Requests go to RyGTServer when online is enabled in RyGT.ini (see OnlineConfig.hpp and
+// Requests go to RyGTServer when online is enabled in <serial>.RyGT.ini (see OnlineConfig.hpp and
 // src/Bridge.cpp). Otherwise contexts, templates and requests can still be created, but any
 // request that would touch the network fails with the library's network error.
 using HttpBridge::Kind;

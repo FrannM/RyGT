@@ -6,12 +6,14 @@
 #include <string>
 #include <string_view>
 
+#include "SettingsIni.hpp"
+
 // Online settings shared by the NP and HTTP libraries. PSN is replaced by RyGTServer: when online
 // is enabled the user is reported as signed in under a local identity, and the game's HTTP(S)
 // traffic is sent as plain HTTP to the configured RyGTServer, which can run on this machine or a
 // friend's.
 //
-// RyGT.ini (next to GTSport.exe) keys, each overridable by an environment variable:
+// The game's <serial>.RyGT.ini (next to GTSport.exe or GT7.exe; SettingsIni.hpp) keys, each overridable by an environment variable:
 //   online=1                       RYGT_ONLINE
 //   online_id=RyGTPlayer           RYGT_ONLINE_ID     (PSN online ID, 3-16 characters)
 //   online_server=127.0.0.1:7890   RYGT_ONLINE_SERVER (RyGTServer host[:port])
@@ -69,7 +71,7 @@ inline std::uint64_t AccountIdFor(std::string_view onlineId) {
 inline Config Load() {
     Config config;
     try {
-        std::ifstream input(std::filesystem::current_path() / "RyGT.ini");
+        std::ifstream input(std::filesystem::current_path() / RuntimeSettingsIni_nid_no_patch());
         std::string line;
         while (std::getline(input, line)) {
             const auto separator = line.find('=');

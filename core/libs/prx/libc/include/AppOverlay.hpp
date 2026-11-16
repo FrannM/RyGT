@@ -6,8 +6,8 @@
 // copy of the game. Now /app0 is a stack of folders searched in order, like a PS4 lays an update
 // over the base game:
 //   1. RyGTS\app0          - what Set up made: the converted sce_module (and eboot.bin's place)
-//   2. the update folder    (RyGT.ini update=)
-//   3. the base game folder (RyGT.ini game=)
+//   2. the update folder    (<serial>.RyGT.ini update=)
+//   3. the base game folder (<serial>.RyGT.ini game=)
 // sce_module and eboot.bin are only ever taken from the first folder, as the links never covered
 // them either: the game's own PS4 modules must not stand in for the converted ones.
 // The folders' contents are listed once and kept: /app0 is read-only on a PS4.
@@ -67,9 +67,19 @@ private:
 };
 
 /// The update and base game folders for this run, update first: RYGT_APP0_LAYERS (';'-separated)
-/// when set, else update= and game= from RyGT.ini in `root`. Missing folders, and RyGTS\app0
-/// itself, are left out; empty when there is nothing to layer (older set-ups with linked files).
-std::vector<std::filesystem::path> ConfiguredApp0Layers(const std::filesystem::path& root);
+/// when set, else update= and game= from the game's <serial>.RyGT.ini in `root` (FEAT-GTS-291; the old
+/// RyGT.ini while only that is there, GameSerial::SettingsIniPath). Missing folders, and RyGTS\app0
+/// itself or a folder in it (app0\<serial>), are left out; empty when there is nothing to layer (older set-ups with linked files).
+std::vector<std::filesystem::path> ConfiguredApp0Layers(const std::filesystem::path& root, const std::string& serial);
+
+/// FEAT-GTS-291: the runtime folder's own app0 for a game, the first layer above: app0\<serial>
+/// (CUSA03220 GT Sport, CUSA24769 GT7), so two games can share one runtime folder. A folder set
+/// up before has no app0\<serial>: its converted executable loads app0\sce_module itself, so /app0
+/// stays app0 there until Set up runs again (the launcher then moves app0 into app0\<serial>).
+std::filesystem::path App0Top(const std::filesystem::path& root, const std::string& serial);
+
+/// The running game's serial (GameSerial.hpp; defined in LaunchDefaults.cpp).
+const char* RunningGameSerial();
 
 }
 

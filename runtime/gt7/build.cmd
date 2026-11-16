@@ -11,6 +11,4 @@ for %%F in ("%~dp0import_*.def") do (
 clang --target=x86_64-pc-windows-msvc -O2 -ffreestanding -fno-builtin -fno-stack-protector -c "%~dp0gt7_stubs.c" -o "%OUT%\gt7_stubs.obj"
 if errorlevel 1 exit /b 1
 lld-link /dll /nodefaultlib /entry:DllEntry /def:"%~dp0gt7_stubs.def" /out:"%OUT%\libSceTextToSpeech.prx" "%OUT%\gt7_stubs.obj" kernel32.lib "%OUT%\import_libSceAjm_native_prx.lib" "%OUT%\import_libSceSsl_prx.lib" "%OUT%\import_libSceVideoRecordingP_prx.lib"
-if errorlevel 1 exit /b 1
-gcc -shared -O2 -s -o "%OUT%\libSceMbus.prx" "%~dp0libSceMbus.c" "%~dp0libSceMbus.def"
 exit /b %errorlevel%

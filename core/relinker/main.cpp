@@ -107,7 +107,7 @@ int main(const int argc, char* argv[]) {
 
         std::vector<Relinker::GuestArtifact> guestArtifacts;
         if (!args.skipSceModule) {
-            guestArtifacts = Relinker::GuestModuleBuilder().Build(args.inputPath, absPath, result.DynamicSection, args.toWindows, args.toIntel, *syscallScanner, args.lazyBinding, args.runPath, args.excludedSceModules);
+            guestArtifacts = Relinker::GuestModuleBuilder().Build(args.inputPath, absPath, result.DynamicSection, args.toWindows, args.toIntel, *syscallScanner, args.lazyBinding, args.runPath, args.excludedSceModules, args.app0Path);
         }
 
         if (args.writeRegistry) {
@@ -154,7 +154,7 @@ int main(const int argc, char* argv[]) {
         }
         std::cout << "Expected runtime layout (relative to the output executable):\n"
                   << std::filesystem::path(absPath).filename().string() << "\n"
-                  << "libs/\n    *.prx\napp0/\n    <game resources>\n";
+                  << "libs/\n    *.prx\n" << args.app0Path << "/\n    <game resources>\n";
         if (!guestArtifacts.empty()) {
             std::cout << "    " << guestArtifacts.front().Path.parent_path().filename().string() << "/\n";
             for (const auto& artifact : guestArtifacts) std::cout << "        " << artifact.Path.filename().string() << '\n';

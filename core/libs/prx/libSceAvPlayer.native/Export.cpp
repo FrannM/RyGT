@@ -30,6 +30,7 @@
 #endif
 #include <windows.h>
 #endif
+#include "GameSerial.hpp"
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -973,7 +974,7 @@ bool DecodingEnabled() {
 }
 
 // The launcher's Display option "Play the opening movie" (General.opening_movie in
-// user\custom_configs\CUSA03220.json next to the game's exe; on unless set to false).
+// user\custom_configs\<serial>.json, GameSerial.hpp, next to the game's exe; on unless set to false).
 bool OpeningMovieEnabled() {
     static const bool on = [] {
         std::string dir = ".";
@@ -986,7 +987,7 @@ bool OpeningMovieEnabled() {
             dir = slash == std::string::npos ? std::string(".") : dir.substr(0, slash);
         }
 #endif
-        std::ifstream file(dir + "/user/custom_configs/CUSA03220.json", std::ios::binary);
+        std::ifstream file(GameSerial::GameConfigPath(dir), std::ios::binary);
         if (!file) return true;
         const std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
         auto at = text.find("\"opening_movie\"");

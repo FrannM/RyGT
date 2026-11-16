@@ -10,7 +10,7 @@
 
 // PSN is replaced by RyGTServer. With online off (the default) the user is reported as signed out
 // and online queries fail. With online on, the user is signed in under the local identity from
-// RyGT.ini, and the game's online traffic goes to RyGTServer through libSceHttp.
+// <serial>.RyGT.ini, and the game's online traffic goes to RyGTServer through libSceHttp.
 static constexpr int SCE_NP_ERROR_INVALID_ARGUMENT = static_cast<int>(0x80550003);
 static constexpr int SCE_NP_ERROR_SIGNED_OUT = static_cast<int>(0x80550006);
 static constexpr uint32_t NP_STATE_SIGNED_OUT = 1;

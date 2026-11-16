@@ -7,7 +7,7 @@
 // nits, sky and lit signs one flat value) under an interface drawn at 250 nits. When the call
 // fails the game uses 1000 / 600 / 0.1 itself.
 //
-// With HDR output off (GPU.hdr_allowed in user\custom_configs\CUSA03220.json, the renderer's
+// With HDR output off (GPU.hdr_allowed in user\custom_configs\<serial>.json, the renderer's
 // setting), or when Windows says no display runs in HDR, the answer is unchanged. Otherwise
 // GPU.hdr_display_peak_nits decides:
 //   - a peak, "<peak>[,<full frame>[,<min>]]" in nits: that display;
@@ -34,6 +34,7 @@
 #include <windows.h>
 #include <dxgi1_6.h>
 #endif
+#include "GameSerial.hpp"
 
 namespace HdrLuminance {
 // Internal linkage: the library exports every external symbol it holds, and these are not for
@@ -232,7 +233,7 @@ inline std::string ReadConfig() {
     if (length == 0 || length >= MAX_PATH * 2) return {};
     std::wstring path(exe, length);
     path.resize(path.find_last_of(L"\\/") + 1);
-    path += L"user\\custom_configs\\CUSA03220.json";
+    path = GameSerial::GameConfigPath(path);
     std::string text;
     if (FILE* file = _wfopen(path.c_str(), L"rb")) {
         char buffer[4096];

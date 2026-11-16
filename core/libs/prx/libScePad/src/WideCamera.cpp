@@ -19,6 +19,7 @@
 #endif
 #include <windows.h>
 
+#include "GameSerial.hpp"
 #include "prx/libScePad/include/PadState.hpp"
 
 namespace {
@@ -40,13 +41,13 @@ constexpr AspectStore AspectStores[] = {
     {0x3f4f510, {0x39, 0x8e, 0xe3, 0x3f}, 4, 0},
 };
 
-// A value of the runtime's settings (user\custom_configs\CUSA03220.json) as written, or "".
+// A value of the runtime's settings (user\custom_configs\CUSA24769.json, GameSerial.hpp) as written, or "".
 std::string ConfigValue(const char* key) {
     char exe[MAX_PATH];
     const DWORD length = GetModuleFileNameA(nullptr, exe, MAX_PATH);
     if (length == 0 || length >= MAX_PATH) return {};
     std::string path(exe, length);
-    path = path.substr(0, path.find_last_of("\\/") + 1) + "user\\custom_configs\\CUSA03220.json";
+    path = GameSerial::GameConfigPath(path.substr(0, path.find_last_of("\\/") + 1));
     std::FILE* file = std::fopen(path.c_str(), "rb");
     if (file == nullptr) return {};
     std::string text;

@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include "GameSerial.hpp"
 #include <string>
 #include <system_error>
 
@@ -47,7 +48,8 @@ inline bool Archive(const std::filesystem::path& source, const std::filesystem::
 
 inline std::filesystem::path Prepare(const std::filesystem::path& root, const std::filesystem::path& name, bool runtimeLaunch = false) {
     std::error_code error;
-    const auto directory = root / "logs";
+    // logs\<serial>: each game's logs in its own folder (GameSerial.hpp, GAME-004).
+    const auto directory = root / "logs" / GameSerial::GameSerial();
     std::filesystem::create_directories(directory, error);
     if (error) return {};
     const auto current = directory / name;

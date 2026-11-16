@@ -39,6 +39,7 @@
 extern "C" int APS5_VABI scePthreadCreate(Pthread* thread, const PthreadAttr* attr, PthreadEntry entry, void* arg, const char* name);
 extern "C" int APS5_VABI scePthreadDetach(Pthread thread);
 #include "prx/libc/include/General.hpp"
+#include "SettingsIni.hpp"
 
 namespace {
 
@@ -103,10 +104,10 @@ void Log(const char* format, ...) {
     std::fflush(stderr);
 }
 
-// RyGT.ini: online_server (RyGTServer), online_id, online_address (this PC's address for others).
+// The game's <serial>.RyGT.ini (SettingsIni.hpp): online_server (RyGTServer), online_id, online_address (this PC's address for others).
 std::string IniValue(const char* key) {
     std::string value;
-    if (std::FILE* ini = std::fopen("RyGT.ini", "r")) {
+    if (std::FILE* ini = std::fopen(RuntimeSettingsIni_nid_no_patch(), "r")) {
         char line[256];
         const size_t length = std::strlen(key);
         while (std::fgets(line, sizeof(line), ini)) {

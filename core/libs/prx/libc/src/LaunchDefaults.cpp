@@ -7,11 +7,13 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <string>
 
 #ifdef _WIN32
 #include <windows.h>
 #endif
+#include "GameSerial.hpp"
 
 namespace LaunchDefaults {
 namespace {
@@ -27,17 +29,6 @@ std::string ExeFolder() {
     std::string narrow(bytes > 0 ? bytes - 1 : 0, '\0');
     if (bytes > 0) WideCharToMultiByte(CP_UTF8, 0, wide.c_str(), -1, narrow.data(), bytes, nullptr, nullptr);
     return narrow;
-}
-
-/// Whether this process is GT7.exe (the file name the converted game has; the renderer and libkernel
-/// tell the games apart the same way).
-bool RunningGt7Exe() {
-    wchar_t path[MAX_PATH * 2];
-    const DWORD length = GetModuleFileNameW(nullptr, path, MAX_PATH * 2);
-    if (length == 0 || length >= MAX_PATH * 2) return false;
-    const wchar_t* name = path;
-    for (const wchar_t* c = path; *c; ++c) if (*c == L'\\' || *c == L'/') name = c + 1;
-    return _wcsicmp(name, L"GT7.exe") == 0;
 }
 
 std::string ReadFile(const std::string& path) {
@@ -105,17 +96,20 @@ void Apply() {
     // FEAT-GTS-291: these are GT7's settings (its write-back ranges, its 30 fps race lock). GT Sport's
     // launcher sets no RYTY_INTEROP_BASE, so under GTSport.exe they were applied as well and capped
     // GT Sport at 30 fps. Only a GT7.exe started without its launcher takes them.
-    if (!RunningGt7Exe()) return;
-    const std::string config = ReadFile(root + "user\\custom_configs\\CUSA03220.json");
+    if (!GameSerial::RunningGt7()) return;
+    // user\custom_configs\CUSA24769.json (CUSA03220.json in a GT7 folder from before GAME-004).
+    const std::string configPath = GameSerial::GameConfigPath(root, true);
+    const std::string config = ReadFile(configPath);
 #else
     const std::string root;
+    const std::string configPath;
     const std::string config;
 #endif
     // As the launcher's StartGame (loader/RyGTLoader.cs) sets them; keep the two in step.
     SetIfMissing("RYTY_INTEROP_BASE", "8000000000");
     SetIfMissing("RYGT_NATIVE_INPLACE_RANGES", "1020000000+1de000,1020235000+1dd000,1020407000+b000,200000000+8000000");
     SetIfMissing("RYGT_NATIVE_INPLACE_FROM", "e000000000");
-    if (!root.empty()) SetIfMissing("RYGT_LOG_DIRECTORY", root + "logs");
+    if (!root.empty()) SetIfMissing("RYGT_LOG_DIRECTORY", root + "logs\\" + GameSerial::GameSerial());
     SetIfMissing("SHADGT_FPS_LOCK", Setting(config, "race_fps_lock") == "60" ? "60" : "30");
     const long cacheMb = Setting(config, "driver_cache_unlimited") == "true"
                              ? -1
@@ -128,7 +122,7 @@ void Apply() {
     const std::string bias = Setting(config, "texture_lod_bias");
     SetIfMissing("RYGT_TEXTURE_LOD_BIAS", bias.empty() ? "0" : bias);
     std::fprintf(stderr, "[launch] started without the launcher: its settings applied from %s\n",
-                 config.empty() ? "defaults" : "user\\custom_configs\\CUSA03220.json");
+                 config.empty() ? "defaults" : configPath.substr(root.size()).c_str());
 }
 
 namespace {
@@ -137,3 +131,14 @@ const int applied_at_load = (Apply(), 0);
 } // namespace
 
 } // namespace LaunchDefaults
+
+namespace Libc {
+const char* RunningGameSerial() { return GameSerial::GameSerial(); }
+}
+
+// FEAT-GTS-291: SettingsIni.hpp.
+extern "C" const char* RuntimeSettingsIni_nid_no_patch() {
+    thread_local std::string path;
+    path = GameSerial::SettingsIniPath(std::filesystem::path(), GameSerial::GameSerial()).string();
+    return path.c_str();
+}

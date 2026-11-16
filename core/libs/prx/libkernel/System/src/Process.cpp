@@ -13,6 +13,7 @@
 #include "prx/libc/include/ApplicationHeap.hpp"
 #include "prx/libc/include/Shutdown.hpp"
 #include "prx/libkernel/DirectMemory/DirectMemory.hpp"
+#include "GameSerial.hpp"
 #include <array>
 #include <atomic>
 #include <cerrno>
@@ -342,19 +343,7 @@ int APS5_VABI sceKernelIsTrinityMode(void) {
 // sceKernelIsNeoMode): under GT7.exe it is this library's (RYGT_NEO), for GT Sport the renderer's
 // own Pro mode setting. Asking the renderer under GT7 would come back here from its export.
 bool RunningGt7() {
-    static const bool gt7 = [] {
-#ifdef _WIN32
-    wchar_t path[MAX_PATH]{};
-    const DWORD length = GetModuleFileNameW(nullptr, path, MAX_PATH);
-    if (length == 0 || length >= MAX_PATH) return false;
-    const wchar_t* name = path;
-    for (const wchar_t* c = path; *c; ++c) if (*c == L'\\' || *c == L'/') name = c + 1;
-    return _wcsicmp(name, L"GT7.exe") == 0;
-#else
-    return false;
-#endif
-    }();
-    return gt7;
+    return GameSerial::RunningGt7();
 }
 
 // RYGT_NEO=1 runs GT7 in its PS4 Pro (Neo) mode: GT7 then draws 3200x1800 (3840x2160 with its

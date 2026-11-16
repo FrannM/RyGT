@@ -1,4 +1,5 @@
 #include <Cli.hpp>
+#include <filesystem>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -37,6 +38,17 @@ Args ParseArgs(int argc, char* argv[]) {
             if (i + 1 >= argc)
                 throw std::runtime_error("--rpath requires a value");
             args.runPath = argv[++i];
+        } else if (arg == "--app0") {
+            if (i + 1 >= argc)
+                throw std::runtime_error("--app0 requires a folder");
+            args.app0Path = argv[++i];
+            for (auto& c : args.app0Path) if (c == '\\') c = '/';
+            while (!args.app0Path.empty() && args.app0Path.back() == '/') args.app0Path.pop_back();
+            const std::filesystem::path folder(args.app0Path);
+            bool valid = !args.app0Path.empty() && folder.is_relative() && !folder.has_root_name() &&
+                         args.app0Path.find(':') == std::string::npos;
+            for (const auto& part : folder) valid = valid && part != ".." && part != "." && !part.empty();
+            if (!valid) throw std::runtime_error("--app0 must be a relative folder such as app0/CUSA03220");
         } else if (arg == "--windows") {
             args.toWindows = true;
         } else if (arg == "--macos") {
@@ -96,7 +108,7 @@ Args ParseArgs(int argc, char* argv[]) {
 
     if (args.inputPath.empty() || args.outputPath.empty())
         throw std::runtime_error(
-            "Usage: ryty [--windows|--macos] [--ps4|--ps5|--console auto|ps4|ps5] [--windows-diagnostics] [--windows-gui] [--rytynet] [--skip-syscall-check] [--skip-sce-module] [--exclude-sce-module <file>]... [--to-intel] [unused-filter=0|1|2] [--registry] [--report <file>] [--rpath <path>] [--lazy-binding] [--autorun] <input.elf> <output.elf>\n"
+            "Usage: ryty [--windows|--macos] [--ps4|--ps5|--console auto|ps4|ps5] [--windows-diagnostics] [--windows-gui] [--rytynet] [--skip-syscall-check] [--skip-sce-module] [--exclude-sce-module <file>]... [--to-intel] [unused-filter=0|1|2] [--registry] [--report <file>] [--rpath <path>] [--app0 <folder>] [--lazy-binding] [--autorun] <input.elf> <output.elf>\n"
             "Example: ryty input.elf output.elf"
         );
 

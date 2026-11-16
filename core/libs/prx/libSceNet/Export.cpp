@@ -35,6 +35,7 @@
 #include <string>
 #include "SceTypes.hpp"
 #include "OnlineConfig.hpp"
+#include "SettingsIni.hpp"
 #include "prx/libc/include/General.hpp"
 
 // Guest socket descriptors retain PS5 semantics while their transport is backed by host sockets.
@@ -278,7 +279,7 @@ struct P2PTransport {
     // does not forward the P2P port maps the peer's port to another one, and only answers sent
     // back to that port get through.
     std::map<std::uint32_t, std::uint16_t> seen_ports;
-    // RyGTServer's UDP relay (online_server in RyGT.ini), for players who cannot reach each other
+    // RyGTServer's UDP relay (online_server in <serial>.RyGT.ini), for players who cannot reach each other
     // directly, and what is known of each peer (by address, network order).
     struct Peer {
         std::chrono::steady_clock::time_point heard_direct{};   // last datagram straight from it
@@ -564,10 +565,10 @@ void p2p_receive_loop() {
     }
 }
 
-// RyGTServer's address from RyGT.ini (online_server=host:port), for its UDP relay.
+// RyGTServer's address from the game's settings, <serial>.RyGT.ini (online_server=host:port), for its UDP relay.
 bool p2p_relay_address(sockaddr_in& address) {
     std::string value;
-    if (std::FILE* ini = std::fopen("RyGT.ini", "r")) {
+    if (std::FILE* ini = std::fopen(RuntimeSettingsIni_nid_no_patch(), "r")) {
         char line[256];
         while (std::fgets(line, sizeof(line), ini))
             if (std::strncmp(line, "online_server=", 14) == 0) value = line + 14;
@@ -1244,11 +1245,11 @@ void install_gt7_probes() {
 void install_game_log() {
     static std::once_flag once;
     std::call_once(once, [] {
-        // RYGT_GAME_LOG=1, or game_log=1 in RyGT.ini.
+        // RYGT_GAME_LOG=1, or game_log=1 in the game's <serial>.RyGT.ini.
         const char* enabled = std::getenv("RYGT_GAME_LOG");
         bool on = enabled && std::strcmp(enabled, "1") == 0;
         if (!enabled) {
-            if (std::FILE* ini = std::fopen("RyGT.ini", "r")) {
+            if (std::FILE* ini = std::fopen(RuntimeSettingsIni_nid_no_patch(), "r")) {
                 char line[256];
                 while (std::fgets(line, sizeof(line), ini))
                     if (std::strncmp(line, "game_log=1", 10) == 0) on = true;

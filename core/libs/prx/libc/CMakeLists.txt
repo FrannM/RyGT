@@ -18,6 +18,9 @@ target_sources(libc PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src/GuestAllocations.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/GuestArena.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/LaunchDefaults.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/SaveLayout.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/SaveLayoutStart.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/SharedNames.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/GuestWriteWatch.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/GuestHeap.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/HeapDiagnostics.cpp
@@ -60,6 +63,22 @@ if(BUILD_TESTING)
     target_include_directories(app0_overlay_tests PRIVATE ${LIBS_INCLUDE_DIR})
     target_compile_features(app0_overlay_tests PRIVATE cxx_std_20)
     add_test(NAME app0_overlay COMMAND app0_overlay_tests)
+
+    # GAME-005: the per-game save folders and the move of a folder's saves into them.
+    add_test_executable(save_layout_tests
+            ${CMAKE_CURRENT_SOURCE_DIR}/SaveLayoutTests.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/SaveLayout.cpp)
+    target_include_directories(save_layout_tests PRIVATE ${LIBS_INCLUDE_DIR})
+    target_compile_features(save_layout_tests PRIVATE cxx_std_20)
+    add_test(NAME save_layout COMMAND save_layout_tests)
+
+    # FEAT-GTS-291: <serial>.RyGT.ini, temp0\<serial> and data\<serial>, and the moves into them.
+    add_test_executable(shared_names_tests
+            ${CMAKE_CURRENT_SOURCE_DIR}/SharedNamesTests.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/SharedNames.cpp)
+    target_include_directories(shared_names_tests PRIVATE ${LIBS_INCLUDE_DIR})
+    target_compile_features(shared_names_tests PRIVATE cxx_std_20)
+    add_test(NAME shared_names COMMAND shared_names_tests)
 
     add_executable(log_files_tests LogFilesTests.cpp)
     target_include_directories(log_files_tests PRIVATE ${LIBS_INCLUDE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/../../../../renderer)
