@@ -2,7 +2,7 @@ shadNet: the PSN sign-in server for online play
 ================================================
 
 A prebuilt shadNet server (shadnet.exe with the Qt 6 libraries it uses), for hosting online play:
-the launcher's Online page starts it from server\shadnet next to RyGT7.exe, beside RyGTServer.
+the launcher's Online page starts it from server\shadnet in the ryGT7 folder, beside RyGTServer.
 
 - Program files only. Its data (db\ with the accounts, score_data\, tss_data\, shadnet.log) is
   made on the hosting PC and is not part of this folder.

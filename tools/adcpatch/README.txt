@@ -5,7 +5,7 @@ Patched scripts go in <game folder>\patches\scripts\ (same file name as the game
 built from Polyphony's scripts. Inputs come from the game's volume (GTToolsSharp unpack).
 
   all <game folder> <update folder or ""> <scripts folder>
-      What RyGTS.exe runs at Set up (and at Play when a script is missing): reads the five scripts
+      What RyGTLauncher.exe runs at Set up (and at Play when a script is missing): reads the five scripts
       from the player's own gt.idx volumes (update first, then base), patches each one and writes
       them to <scripts folder>. The .ad files must sit next to adcpatch.exe. ADCPATCH_KEEP=1 keeps
       the extracted originals. Releases ship it published self-contained in toolsdcpatch\.

@@ -197,7 +197,7 @@ def check_package_imports(stage):
 def assemble(commit, flavor, channel, suffix):
     launcher_folder = Path('artifacts/launcher' + suffix)
     renderer_folder = Path('artifacts/renderer' + suffix)
-    launcher = verify_bundle(launcher_folder, 'RyGTS.exe', commit, flavor)
+    launcher = verify_bundle(launcher_folder, 'RyGTLauncher.exe', commit, flavor)
     renderer = verify_bundle(renderer_folder, 'libSceVideoOut.prx', commit, flavor)
     root = Path(__file__).resolve().parent.parent
     pin = json.loads((root / 'renderer/source.json').read_text())
@@ -223,7 +223,7 @@ def assemble(commit, flavor, channel, suffix):
     # taken from this repository; there is no runtime archive any more.
     for repository_file, relative in REPOSITORY_FILES:
         place(root / repository_file, relative)
-    place(launcher, 'RyGTS.exe')
+    place(launcher, 'RyGTLauncher.exe')
     place(renderer, 'libs/libSceVideoOut.prx')
     runtime_folder = Path('artifacts/runtime')
     libraries, dlls = verify_runtime(runtime_folder, commit)
@@ -266,7 +266,7 @@ def assemble(commit, flavor, channel, suffix):
         renderer_sha256=sha(renderer),
         runtime_toolchain=json.loads((runtime_folder / 'RUNTIME-TOOLCHAIN.json').read_text(encoding='utf-8-sig')),
         sources=dict(
-            built=['RyGTS.exe', 'libs/libSceVideoOut.prx', 'converter/ryty.exe', 'tools/ryty-wheel-probe.exe',
+            built=['RyGTLauncher.exe', 'libs/libSceVideoOut.prx', 'converter/ryty.exe', 'tools/ryty-wheel-probe.exe',
                    'tools/adcpatch/adcpatch.exe'] + sorted('libs/' + library.name for library in libraries) +
                   ['libs/' + name for name in RENDERER_LIBRARIES if name not in {library.name for library in libraries}] +
                   ['tools/' + name for name in RENDERER_TOOLS] + ['dlss/' + DLSS_PLUGIN],
@@ -276,7 +276,7 @@ def assemble(commit, flavor, channel, suffix):
     if suffix:
         # PDBs are not packaged. Only these explicitly verified same-build
         # symbols are admitted to debug-ci, adjacent to their matching modules.
-        for folder, pdb_name, target in ((launcher_folder, 'RyGTS.pdb', 'RyGTS.pdb'),
+        for folder, pdb_name, target in ((launcher_folder, 'RyGTLauncher.pdb', 'RyGTLauncher.pdb'),
                                         (renderer_folder, 'libSceVideoOut.pdb', 'libs/libSceVideoOut.pdb')):
             shutil.copy2(verify_artifact(folder, pdb_name, commit, 'pdb'), stage / target)
         tools = stage / 'tools/diagnostics'; tools.mkdir(parents=True)
@@ -291,7 +291,7 @@ def assemble(commit, flavor, channel, suffix):
         shutil.copy2(root / 'ci/diagnostics/DEBUG-README.txt', stage / 'README.txt')
     else:
         (stage / 'README.txt').write_text(
-            'RyGTS Release CI package (ci)\n\nRun RyGTS.exe to set up your own decrypted GT Sport CUSA03220 v1.69 dump.\n'
+            'RyGTS Release CI package (ci)\n\nRun RyGTLauncher.exe to set up your own decrypted GT Sport CUSA03220 v1.69 dump.\n'
             'Debug/Diagnostics is distributed separately as debug-ci.\n'
             'Game executable/data, firmware, saves, logs, caches and NVIDIA SDK DLLs are excluded.\n'
             'Supply required firmware modules and optional NVIDIA upscaler files yourself.\n'
@@ -299,7 +299,7 @@ def assemble(commit, flavor, channel, suffix):
             '(AMD FidelityFX runtime) or taken from the source repository: see BUILD_INFO.txt.\n'
             'This is a CI artifact, not a tagged release. See BUILD_INFO.txt and SHA256SUMS.txt.\n', encoding='utf-8')
     (stage / 'BUILD_INFO.txt').write_text(json.dumps(provenance, indent=2) + '\n', encoding='utf-8')
-    allowed_pdb = {'RyGTS.pdb', 'libs/libSceVideoOut.pdb'} if suffix else set()
+    allowed_pdb = {'RyGTLauncher.pdb', 'libs/libSceVideoOut.pdb'} if suffix else set()
     for file in stage.rglob('*'):
         if file.is_file() and file.suffix.lower() == '.pdb' and file.relative_to(stage).as_posix() not in allowed_pdb:
             raise RuntimeError('Unexpected packaged symbols')

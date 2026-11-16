@@ -1,7 +1,7 @@
 """Packages a ryGT7 release folder (and optionally a zip) from an assembled runtime folder.
 
 Usage:
-  python -I package_release.py --runtime <folder> --launcher <RyGT7.exe> --converter <ryty.exe>
+  python -I package_release.py --runtime <folder> --launcher <RyGTLauncher.exe> --converter <ryty.exe>
       --out <folder> [--renderer-source <shadGT7 checkout>] [--name RyGT7-<date>-prerelease] [--zip]
       [--server <RyGTServer.exe> [--shadnet <shadNet folder, default server/shadnet>]]
 
@@ -9,7 +9,7 @@ Only these go in:
   - libs\\: the file names listed in runtime-files.txt, from <runtime>\\libs
   - amd_fidelityfx_vk.dll and its license, and the three GCC runtime DLLs, from <runtime>
   - converter\\: ryty.exe and the GCC runtime DLLs
-  - RyGT7.exe and launcher\\ (original background artwork and its note)
+  - RyGTLauncher.exe (FEAT-GTS-291: the launcher for both games) and launcher\\ (original background artwork and its note)
   - patches\\CUSA24769.xml and its provenance/credits from this repository
   - README.txt, LICENSE, licenses\\ and manifest.json (SHA-256 of every file, source commits)
   - with --dlss-plugin and --dlss-sdk-license (FEAT-GTS-269): dlss\\ryGT_dlss.dll alone (NVIDIA's runtime comes
@@ -48,7 +48,8 @@ PROVENANCE = (
     "libSceNetCtl.prx, libSceNpManager.prx, libSceNpSessionSignaling.prx, libSceRtc.prx and "
     "libSceSsl.prx, and the converter from the RyGT7 commit (MSYS2 UCRT64 GCC 16.2, from "
     "2026-10-30); "
-    "libSceTextToSpeech.prx and libSceMbus.prx from runtime/gt7; "
+    "libSceTextToSpeech.prx from runtime/gt7; libSceMbus.prx is the runtime's placeholder from "
+    "core/libs/placeholders (the same file as GT Sport's package); "
     "libSceAppContentUtil.prx, libSceVideoRecording.prx and libMozaSDK-PS4.prx are copies of "
     "Ryty's empty placeholder module. The other libraries are ryGT's GT Sport build of "
     "2026-10-22 (RyGT commit 882312d, in this repository's history).")
@@ -198,7 +199,7 @@ def main():
     package.put(args.converter, "converter\\ryty.exe")
     for n in GCC_DLLS:
         package.put(args.runtime / n, "converter\\" + n)
-    package.put(args.launcher, "RyGT7.exe")
+    package.put(args.launcher, "RyGTLauncher.exe")
     # Steering wheels: every release ships the wheel probe the launcher's wheel page runs.
     wheel_probe = args.wheel_probe if args.wheel_probe.is_file() else REPO / "tools" / "ryty-wheel-probe.exe"
     if not wheel_probe.is_file():

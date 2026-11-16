@@ -16,7 +16,7 @@ class AssemblyTests(unittest.TestCase):
         self.root = Path(self.tmp.name)
         for x in ('source/build-support', 'built', 'renderer', 'stubs', 'ucrt/bin', 'out', 'fidelityfx', 'dlss-sdk'):
             (self.root / x).mkdir(parents=True)
-        self.names = list(module.RENDERER_LIBS) + list(module.STUB_LIBS) + list(module.GCC_DLLS) + list(module.REQUIRED_RUNTIME) + ['old.prx']
+        self.names = list(module.RENDERER_LIBS) + list(module.STUB_LIBS) + list(module.GCC_DLLS) + list(module.REQUIRED_RUNTIME) + ['old.prx', 'libSceMbus.prx']
         (self.root/'source/build-support/runtime-files.txt').write_text('\n'.join(self.names))
         # FEAT-GTS-253: no runtime archive; AMD's FidelityFX runtime is checked against its pin.
         for n in ('amd_fidelityfx_vk.dll','amd_fidelityfx_vk-LICENSE.txt'): (self.root/'fidelityfx'/n).write_bytes(n.encode())
@@ -28,6 +28,7 @@ class AssemblyTests(unittest.TestCase):
         for n in module.GCC_DLLS: (self.root/'ucrt/bin'/n).write_bytes(b'ucrt')
         for n in module.REQUIRED_RUNTIME: (self.root/'built'/n).write_bytes(b'fresh runtime')
         (self.root/'built/old.prx').write_bytes(b'fresh')
+        (self.root/'built/libSceMbus.prx').write_bytes(b'placeholder')
         for n in ('launcher.exe','converter.exe','probe.exe','ryGT_dlss.dll'): (self.root/n).write_bytes(n.encode())
         # FEAT-GTS-269: the DLSS plugin, and NVIDIA's licence checked against its pin.
         (self.root/'dlss-sdk/LICENSE.txt').write_bytes(b'NVIDIA RTX SDKs LICENSE')
@@ -45,7 +46,9 @@ class AssemblyTests(unittest.TestCase):
         info=json.loads(self.args.info.read_text())
         self.assertEqual(info['runtime_files']['libs/old.prx']['origin'],'rygt7-source-build')
         self.assertEqual(info['runtime_files']['libs/libSceVideoOut.prx']['origin'],'shadgt7-source-build')
-        self.assertEqual(info['runtime_files']['libs/libSceMbus.prx']['origin'],'rygt7-gt7-stub-build')
+        self.assertEqual(info['runtime_files']['libs/libSceTextToSpeech.prx']['origin'],'rygt7-gt7-stub-build')
+        # FEAT-GTS-291: one libSceMbus for both games, the runtime build's placeholder.
+        self.assertEqual(info['runtime_files']['libs/libSceMbus.prx']['origin'],'rygt7-source-build')
         self.assertEqual(info['runtime_files']['libs/libstdc++-6.dll']['origin'],'ucrt64-toolchain')
         self.assertEqual(info['runtime_files']['amd_fidelityfx_vk.dll']['origin'],'amd-fidelityfx-sdk')
         self.assertEqual(info['runtime_files']['dlss/ryGT_dlss.dll']['origin'],'rygt7-source-build')

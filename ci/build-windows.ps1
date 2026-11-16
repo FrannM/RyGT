@@ -11,8 +11,8 @@ $out = Join-Path (Get-Location) ("artifacts/" + $Target.ToLowerInvariant() + $su
 New-Item -ItemType Directory -Force $out | Out-Null
 if ($Target -eq 'Launcher') {
     Invoke-Checked 'cmd.exe' @('/d','/c', 'loader\build.cmd', $out, $Flavor)
-    if (!(Test-Path "$out/RyGTS.exe")) { throw 'Launcher output missing' }
-    if ($env:RYGT_CODESIGN -eq '1') { & (Join-Path $PSScriptRoot 'sign-windows.ps1') -Path "$out/RyGTS.exe" }
+    if (!(Test-Path "$out/RyGTLauncher.exe")) { throw 'Launcher output missing' }
+    if ($env:RYGT_CODESIGN -eq '1') { & (Join-Path $PSScriptRoot 'sign-windows.ps1') -Path "$out/RyGTLauncher.exe" }
 } elseif ($Target -eq 'Runtime') {
     # FEAT-GTS-260: the runtime libraries (libs/*.prx) and the MinGW runtime DLLs beside GTSport.exe,
     # built with the pinned MSYS2 UCRT64 GCC and FFmpeg package in ci/runtime-toolchain.json. Only the
@@ -219,7 +219,7 @@ int rygt_ndebug_probe(void) { return 0; }
 }
 if ($Flavor -eq 'Diagnostics' -and $Target -ne 'Runtime') {
     if (!$env:LLVM_ROOT) { throw 'LLVM_ROOT required to verify diagnostics symbols' }
-    $name = if ($Target -eq 'Launcher') { 'RyGTS' } else { 'libSceVideoOut' }
+    $name = if ($Target -eq 'Launcher') { 'RyGTLauncher' } else { 'libSceVideoOut' }
     $extension = if ($Target -eq 'Launcher') { 'exe' } else { 'prx' }
     Invoke-Checked 'python' @('ci/diagnostics/verify-symbols.py', "$out/$name.$extension", "$out/$name.pdb", "$env:LLVM_ROOT/bin", "$out/SYMBOLS.json")
 }

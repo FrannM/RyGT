@@ -10,7 +10,7 @@ Quick start
   1. Extract this folder to a writable place on the SAME DRIVE as your game dump (the game's
      files are linked into it, not copied; on another drive Windows Developer Mode must be
      on). Keep it separate from the game and update folders.
-  2. Run RyGT7.exe and pick:
+  2. Run RyGTLauncher.exe and pick:
        Base game (CUSA24769)   your decrypted base game folder: eboot.bin, sce_sys\param.sfo,
                                sce_module and contents (gt.idx and the gt*.vol archives)
        Update                  your decrypted update folder (with its own eboot.bin and
@@ -24,12 +24,12 @@ Quick start
        Fonts                   a folder with your PS4 firmware's font and font2 folders
   3. Press Set up. It converts the game for Windows (a minute or two), gives GT7.exe the
      game's own icon, links the game files into app0 and copies the fonts. Its log is
-     setup.log.
+     logs\CUSA24769\setup.log.
   4. Press Play. Logs are written under logs\.
 
 Photos: the game keeps Scapes and race photos in its own format (download0\APP_DATA\photo).
 To get a picture you can open, pick the photo in the game's gallery and choose Export: it is
-written as a JPEG to the Photos folder next to RyGT7.exe (About > Folders in the launcher opens
+written as a JPEG to the Photos folder next to RyGTLauncher.exe (About > Folders in the launcher opens
 it), named after its date and place. Taking a photo does not export it.
 
 Verified: the CUSA24769 dump whose metadata reports APP_VER 01.00, converted in a clean
@@ -68,7 +68,7 @@ State of this build ({date})
     into a race: if the game crashes when a race loads, turn it off. Online play is new and was
     tested by its author only.
 
-Options (RyGT7.exe)
+Options (RyGTLauncher.exe)
   Display mode and resolution; Upscaling (Off, AMD FSR 1, AMD FSR 3.1 or NVIDIA DLSS, with a
   quality list that sets the size the 1920x1080 picture is scaled to) and Frame generation
   (AMD FSR 3.1, or NVIDIA DLSS on RTX 40/50). NVIDIA's DLSS files are not included: the
@@ -76,8 +76,10 @@ Options (RyGT7.exe)
   NVIDIA's GitHub, checked against pinned SHA-256 hashes and NVIDIA's signature. Also
   texture sharpness, controller bindings and ports, steering wheels, shader compilation mode, Discord presence
   and logging. GT Sport's livery, shader-pack and renderer patch options do not apply to GT7
-  and are gone. Paths are kept in RyGT7.ini next to the launcher; the runtime's settings in
-  user\custom_configs\CUSA03220.json (the renderer's fixed configuration name).
+  and are gone. Paths are kept in CUSA24769.RyGT.ini next to the launcher (an older folder's RyGT7.ini and
+  RyGT.ini are merged into it); the runtime's settings in
+  user\custom_configs\CUSA24769.json (GT7's serial; an older folder's CUSA03220.json is renamed),
+  and the saves in user\savedata\CUSA24769 (an older folder's _sd and download0 are moved there).
 
 Crash reports (GPU device lost)
   If the game stops with an NVIDIA device loss, start the launcher from a command prompt
@@ -95,7 +97,7 @@ Offline mode patch (included)
   patches\README.md. Car thumbnails in the dealerships stay grey.
 
 Files and licenses
-  RyGT7.exe is the launcher, converter\ryty.exe the converter, libs\ the runtime libraries
+  RyGTLauncher.exe is the launcher (RyGT Launcher, for GT Sport and GT7), converter\ryty.exe the converter, libs\ the runtime libraries
   including the shadGT7 renderer (libSceVideoOut.prx); the GCC runtime DLLs and AMD
   FidelityFX (amd_fidelityfx_vk.dll) are redistributed with their notices. GPL version 2
   applies to ryGT7 and shadGT7: LICENSE and the licenses folder hold the notices of

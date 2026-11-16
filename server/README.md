@@ -54,9 +54,9 @@ To reach a host over the internet, either forward TCP port 7890 on the host's ro
 PC, or put everyone on a shared VPN such as Tailscale and use the host's VPN address. Windows may ask
 the host to let RyGTServer through the firewall: allow it.
 
-The settings live in `RyGT.ini` next to `GTSport.exe`. Environment variables override them:
+The settings live in the game's `<serial>.RyGT.ini` next to its exe (`CUSA03220.RyGT.ini` beside `GTSport.exe`). Environment variables override them:
 
-| RyGT.ini | Environment | Default |
+| <serial>.RyGT.ini | Environment | Default |
 | --- | --- | --- |
 | `online=1` | `RYGT_ONLINE` | off |
 | `online_id=Name` | `RYGT_ONLINE_ID` | `RyGTPlayer` |

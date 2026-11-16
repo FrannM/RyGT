@@ -22,7 +22,7 @@ functions that RyGTS's libraries use, and the game does not start.
    game dump in your home folder or on a Steam library drive too, since Proton may not see other
    places. The game reads its files from the game and update folders you pick; nothing is copied or
    linked into the RyGTS folder.
-2. In Steam, choose **Games > Add a Non-Steam Game to My Library > Browse**, pick `RyGTS.exe`,
+2. In Steam, choose **Games > Add a Non-Steam Game to My Library > Browse**, pick `RyGTLauncher.exe`,
    then **Add Selected Programs**.
 3. Right-click the new entry, open **Properties > Compatibility**, tick **Force the use of a
    specific Steam Play compatibility tool** and pick **Proton 10.0** or newer.
@@ -54,8 +54,8 @@ The first boot builds shaders on the splash screen, as on Windows.
 
 ## Without Steam (Wine, Lutris, Bottles)
 
-Use Wine 10 or newer with a 64-bit prefix and a Vulkan driver, and run `wine RyGTS.exe` from the
-RyGTS folder. In Lutris or Bottles, add `RyGTS.exe` with a Wine 10 or newer runner.
+Use Wine 10 or newer with a 64-bit prefix and a Vulkan driver, and run `wine RyGTLauncher.exe` from the
+RyGTS folder. In Lutris or Bottles, add `RyGTLauncher.exe` with a Wine 10 or newer runner.
 
 ## If something goes wrong
 

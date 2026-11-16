@@ -20,7 +20,7 @@ CONFIGURED = 'https://github.com/RyGT-Team/shadgt7.git'
 FETCHED = 'https://github.com/RyGT-Team/shadgt7.git'
 SHA = re.compile(r'^[0-9a-f]{40}$')
 DIGEST = re.compile(r'^[0-9a-f]{64}$')
-REQUIRED = {'RyGT7.exe', 'converter/ryty.exe', 'libs/libSceVideoOut.prx', 'libs/libSceFiber.prx', 'BUILD_INFO.json',
+REQUIRED = {'RyGTLauncher.exe', 'converter/ryty.exe', 'libs/libSceVideoOut.prx', 'libs/libSceFiber.prx', 'BUILD_INFO.json',
             # FEAT-GTS-269: the DLSS plugin and both its licences.
             'dlss/ryGT_dlss.dll', 'licenses/ryGT_dlss/LICENSE', 'licenses/NVIDIA-DLSS-SDK/LICENSE.txt'}
 BAD = {'game', 'games', 'firmware', 'saves', 'save', 'savedata', 'shader-cache', 'shadercache', 'cache', 'caches', 'sce_sys', 'system_modules', 'fonts', 'app0', 'convert', 'sys', '_sd', 'user', 'shaders', 'logs', 'sce_module', 'eboot.bin'}
@@ -75,7 +75,7 @@ def validate(folder, commit):
                 fail()
             relative = parts[1:]
             roots = {'libs', 'converter', 'tools', 'patches', 'launcher', 'docs', 'licenses', 'dlss'}
-            root_files = {'rygt7.exe', 'build_info.json', 'manifest.json', 'readme.txt', 'license', 'amd_fidelityfx_vk.dll', 'amd_fidelityfx_vk-license.txt', 'libgcc_s_seh-1.dll', 'libstdc++-6.dll', 'libwinpthread-1.dll'}
+            root_files = {'rygtlauncher.exe', 'build_info.json', 'manifest.json', 'readme.txt', 'license', 'amd_fidelityfx_vk.dll', 'amd_fidelityfx_vk-license.txt', 'libgcc_s_seh-1.dll', 'libstdc++-6.dll', 'libwinpthread-1.dll'}
             if (len(relative) == 1 and relative[0].casefold() not in root_files) or (len(relative) > 1 and relative[0].casefold() not in roots): fail()
             key = path.casefold()
             if key in folded: fail()

@@ -71,19 +71,20 @@ has to be published like this:
 - **The tag must point at the commit the package was built from** (its `BUILD_INFO.txt` commit).
   The updater reads the tag's commit to skip a release that is the same build as the installed
   one, for example the newest nightly.
-- **A release installs its own launcher.** Publish one whose `RyGTS.exe` has the updater you want
+- **A release installs its own launcher.** Publish one whose `RyGTLauncher.exe` has the updater you want
   players to keep.
 
 ## Launcher build
 
-`loader\build.cmd [output folder]` builds `RyGTS.exe` with the .NET Framework 4 `csc`, which only
+`loader\build.cmd [output folder]` builds `RyGTLauncher.exe` (RyGT Launcher, for both games) with the .NET Framework 4 `csc`, which only
 accepts **C# 5**: no local functions, `out var`, tuples or string interpolation. Add new `.cs`
 files to the list in `build.cmd` and to `SOURCES` in `loader\test-launcher.cmd`, which builds the
 launcher and runs its checks (`loader\test-launcher.cmd <output folder>`).
 
 The launcher is for both GT Sport and GT7 (FEAT-GTS-290, `loader/UNIFIED-LAUNCHER.md`): what both games
 share is in `RyGTLoader.cs`, what only one has in `GtsPages.cs` or `Gt7Pages.cs`. Each game keeps its own
-folder, settings file and launch environment; change one game's launch only in its own file.
+settings file (`<serial>.RyGT.ini`) and launch environment, and every name it writes in a folder follows its serial,
+so both games may share one folder (FEAT-GTS-291); change one game's launch only in its own file.
 
 ## Launcher version
 

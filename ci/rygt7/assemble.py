@@ -23,7 +23,9 @@ DLSS_PLUGIN = 'dlss/ryGT_dlss.dll'
 RENDERER_LIBS = ('libSceVideoOut.prx', 'libSceAudio3d.prx', 'libSceAjm.prx',
                  'libSceNgs2.prx', 'libSceZlib.prx', 'libSceDiscMap.prx',
                  'libSceScreenShot.prx', 'libSceNpAuth.prx')
-STUB_LIBS = ('libSceTextToSpeech.prx', 'libSceMbus.prx')
+# FEAT-GTS-291: libSceMbus.prx is no longer a GT7 stub: the runtime build's placeholder (core/libs/placeholders)
+# serves both games, so it comes from --built-libs like GT Sport's package takes it.
+STUB_LIBS = ('libSceTextToSpeech.prx',)
 REQUIRED_RUNTIME = ('libc.prx', 'libkernel.prx', 'libSceFiber.prx', 'libScePad.prx',
                     'libSceHttp.prx', 'libSceNet.prx', 'libSceNetCtl.prx', 'libSceNpManager.prx',
                     'libSceNpSessionSignaling.prx', 'libSceRtc.prx', 'libSceSsl.prx')

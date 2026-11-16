@@ -84,7 +84,7 @@ class PackageTests(unittest.TestCase):
     def fixture(self):
         pin = json.loads((ROOT / 'renderer/source.json').read_text())
         for flavor, _, suffix in pkg.VARIANTS:
-            for target, binary in (('launcher', 'RyGTS.exe'), ('renderer', 'libSceVideoOut.prx')):
+            for target, binary in (('launcher', 'RyGTLauncher.exe'), ('renderer', 'libSceVideoOut.prx')):
                 folder = Path('artifacts/' + target + suffix)
                 folder.mkdir(parents=True)
                 (folder / binary).write_bytes(pe())
@@ -152,7 +152,7 @@ class PackageTests(unittest.TestCase):
                 with zipfile.ZipFile(archive) as z:
                     names = {n.removeprefix(prefix) for n in z.namelist()}
                     pdbs = {n for n in names if n.endswith('.pdb')}
-                    self.assertEqual(pdbs, {'RyGTS.pdb', 'libs/libSceVideoOut.pdb'} if variant['channel'] == 'debug-ci' else set())
+                    self.assertEqual(pdbs, {'RyGTLauncher.pdb', 'libs/libSceVideoOut.pdb'} if variant['channel'] == 'debug-ci' else set())
                     self.assertEqual('tools/diagnostics/Start-Capture.cmd' in names, bool(pdbs))
                     config = json.loads(z.read(prefix + 'user/custom_configs/CUSA03220.json'))
                     self.assertTrue(config['GPU']['precompile_shaders'])

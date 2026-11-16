@@ -6,7 +6,7 @@ debug-ci archive contains the Debug runtime; the ci archive contains Release.
 Extract them to different folders for independent settings, saves and caches;
 setup points each at your own game dump and firmware modules.
 
-Run this folder's RyGTS.exe. Close
+Run this folder's RyGTLauncher.exe. Close
 the Release game first. PDBs are beside the matching launcher and renderer for
 automatic debugger discovery. Symbols cover the launcher and renderer; the runtime
 libraries, converter and tools are Release builds of the same revision, without symbols.

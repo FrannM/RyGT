@@ -18,7 +18,7 @@ program, together with shadGT's Vulkan renderer.
 
 ## Setup with the loader
 
-Unzip a release anywhere (it does not have to be on the game's drive), run `RyGTS.exe`, pick the game folder, the
+Unzip a release anywhere (it does not have to be on the game's drive), run `RyGTLauncher.exe`, pick the game folder, the
 1.69 update folder, a folder with your firmware's system modules and one with its fonts, then
 press **Set up** and **Play**. Set up also gives `GTSport.exe` the Gran Turismo Sport icon and makes it a Windows
 (GUI) program, so after that you can also open `GTSport.exe` directly: the runtime and renderer
@@ -58,11 +58,11 @@ own decrypted dump of CUSA03220 with update 1.69 and your own firmware files.
 4. Next to `GTSport.exe`, put the release's `libs` folder, MinGW DLLs and
    `user\custom_configs\CUSA03220.json`, and the converted `sce_module\*.guest.prx` in
    `app0\sce_module`. The game's own files stay in the dump: write `game=<base game folder>` and
-   `update=<1.69 update folder>` into `RyGT.ini` next to `GTSport.exe` (or set
+   `update=<1.69 update folder>` into `CUSA03220.RyGT.ini` next to `GTSport.exe` (`RyGT.ini` before FEAT-GTS-291) (or set
    `RYGT_APP0_LAYERS=<update>;<base game>`), and `/app0` is read from `app0`, then the update, then
    the base game. `eboot.bin` and `sce_module` only ever come from `app0`.
 5. System fonts go in `sys\common\font` and `sys\common\font2`.
-6. Run `GTSport.exe` (`RyGTS.exe --prepare GTSport.exe` gives it the icon and the Windows subsystem,
+6. Run `GTSport.exe` (`RyGTLauncher.exe --prepare GTSport.exe` gives it the icon and the Windows subsystem,
    so no console window opens).
 
 The RyGTS launcher has an **In-game user name** field. It saves your choice and passes it to the

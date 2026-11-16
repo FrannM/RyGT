@@ -43,7 +43,8 @@ cmake --build Build/x64-Clang-Release --target ryty_gpu ryty_audio3d ryty_ajm ry
 ```
 
 The renderer CMake configuration applies its checked-in VMA patches. Copy its `.prx` libraries over
-the corresponding native runtime libraries, and build the supplemental stubs in `runtime/gt7`.
+the corresponding native runtime libraries, and build the supplemental stub in `runtime/gt7`
+(`libSceTextToSpeech.prx`; `libSceMbus.prx` is the runtime build's placeholder, the same file as GT Sport's).
 The first prerelease was built with MSYS2 UCRT64 GCC for the runtime and LLVM/Visual Studio for
 the renderer, using the established upstream release's remaining runtime libraries. It is a mixed
 toolchain distribution; the manifest records source revisions and provenance. A fresh complete build

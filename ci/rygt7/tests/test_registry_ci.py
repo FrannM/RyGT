@@ -67,7 +67,7 @@ class Validation(unittest.TestCase):
     def test_valid(self):
         self.write(); m.validate(self.folder, COMMIT)
     def test_missing_components(self):
-        for path in ('RyGT7.exe','converter/ryty.exe','libs/libSceVideoOut.prx'):
+        for path in ('RyGTLauncher.exe','converter/ryty.exe','libs/libSceVideoOut.prx'):
             value=self.files.pop(path); self.write()
             with self.assertRaises(ValueError): m.validate(self.folder, COMMIT)
             self.files[path]=value
