@@ -63,7 +63,6 @@ if ($Target -eq 'Launcher') {
         Invoke-Checked 'git' @('-C',$dir,'submodule','update','--init','--recursive','--depth','1')
         Invoke-Checked 'git' @('-C',$dir,'apply','--whitespace=nowarn',(Resolve-Path "tools/adcpatch/$($source.patch)").Path)
         Copy-Item "$dir/LICENSE" "$out/$($source.name)-LICENSE.txt"
-        if ($source.name -eq 'GTToolsSharp') { Copy-Item "$dir/PDTools/LICENSE" "$out/PDTools-LICENSE.txt" }
     }
     $publish = Join-Path (Get-Location) 'build/ci-adcpatch'
     Invoke-Checked 'dotnet' @('publish','tools/adcpatch/adcpatch.csproj','-c','Release','-r','win-x64','--self-contained',

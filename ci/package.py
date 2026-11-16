@@ -12,7 +12,7 @@ import zipfile
 FORBIDDEN = {'.self', '.elf', '.sprx', '.pkg', '.vol', '.adc', '.log', '.pdb'}
 # FEAT-GTS-263: what ci/build-windows.ps1 -Target Tools produces (adcpatch and AMD's FidelityFX runtime).
 TOOLS_FILES = ('adcpatch.exe', 'grim.ad', 'openGrim.ad', 'adcpatch-README.txt', 'GTAdhocToolchain-LICENSE.txt',
-               'GTToolsSharp-LICENSE.txt', 'PDTools-LICENSE.txt', 'amd_fidelityfx_vk.dll', 'amd_fidelityfx_vk-LICENSE.txt')
+               'amd_fidelityfx_vk.dll', 'amd_fidelityfx_vk-LICENSE.txt')
 # Files that come from this repository.
 REPOSITORY_FILES = (('loader/launcher/background.png', 'launcher/background.png'),
                     ('loader/launcher/README.txt', 'launcher/README.txt'),

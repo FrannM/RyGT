@@ -128,12 +128,6 @@
         "repository": "https://github.com/Nenkai/GTAdhocToolchain.git",
         "commit": "3fecc2ed58e5d46135b2f94d2ce5d3fa8fb7dba0",
         "patch": "GTAdhocToolchain-exact-roundtrip.patch"
-      },
-      {
-        "name": "GTToolsSharp",
-        "repository": "https://github.com/Nenkai/GTToolsSharp.git",
-        "commit": "a59e6f17e8bf455bdaab84b88b3d02de3a593fc1",
-        "patch": "GTToolsSharp-read-only-open.patch"
       }
     ],
     "dotnet_sdk": "10.0.401"

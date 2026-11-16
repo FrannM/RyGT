@@ -3874,90 +3874,12 @@ namespace RyGT
                 CopyDirectory(font2Dir, Path.Combine(root, "sys", "common", "font2"));
             }
 
-            // 5. Offline livery and decal scripts, made from this game's own files.
-            SetStatus("Making the offline livery scripts from your game files...");
-            if (!BuildGameScripts(baseDir, updateDir))
-                Log("Note: the offline livery scripts could not be made; liveries will not apply offline.");
-
-            // 6. The shader folder every RyGT folder shares.
+            // 5. The shader folder every RyGT folder shares.
             UsePortableShaderCache();
 
             GameBuildIntegrity.Record(Exe);
             Log("Recorded GTSport.exe SHA-256: " + GameBuildIntegrity.Hash(Exe));
             Log("Set up finished.");
-        }
-
-        // The game scripts GTS-005 serves from patches\scripts: offline livery apply (UI_KIT, LIVERY2,
-        // THUMBNAIL) and the decals folder (GALLERY, GRIM). They are made from Polyphony's scripts, so
-        // they are not shipped: tools\adcpatch\adcpatch.exe reads them from the player's own game
-        // volumes (GTToolsSharp) and patches them (GTAdhocToolchain), both by Nenkai, MIT licensed.
-        static readonly string[] GameScripts = { "UI_KIT.ADC", "LIVERY2.ADC", "THUMBNAIL.ADC", "GALLERY.ADC", "GRIM.ADC" };
-
-        bool GameScriptsMissing()
-        {
-            string dir = Path.Combine(root, "patches", "scripts");
-            return GameScripts.Any(name => !File.Exists(Path.Combine(dir, name)));
-        }
-
-        // Missing, or made by another toolsdcpatch (a newer build ships a newer one): the scripts
-        // folder keeps a hash of the adcpatch.exe that made it.
-        bool GameScriptsOutdated()
-        {
-            if (GameScriptsMissing()) return true;
-            string tool = Path.Combine(root, "tools", "adcpatch", "adcpatch.exe");
-            if (!File.Exists(tool)) return false;
-            string stamp = Path.Combine(root, "patches", "scripts", "made-by.txt");
-            try { return !File.Exists(stamp) || File.ReadAllText(stamp).Trim() != ToolHash(tool); }
-            catch { return true; }
-        }
-
-        static string ToolHash(string tool)
-        {
-            using (var sha = System.Security.Cryptography.SHA256.Create())
-            using (var stream = File.OpenRead(tool))
-                return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-", "");
-        }
-
-        bool BuildGameScripts(string baseDir, string updateDir)
-        {
-            string tool = Path.Combine(root, "tools", "adcpatch", "adcpatch.exe");
-            if (!File.Exists(tool)) { Log("tools\\adcpatch\\adcpatch.exe is missing."); return false; }
-            string output = Path.Combine(root, "patches", "scripts");
-            Func<string, string> arg = d => "\"" + (d ?? "").TrimEnd('\\') + "\"";
-            string arguments = "all " + arg(baseDir) + " " + arg(updateDir) + " " + arg(output);
-            Log("> adcpatch.exe " + arguments);
-            var info = new ProcessStartInfo(tool, arguments)
-            {
-                WorkingDirectory = Path.GetDirectoryName(tool), UseShellExecute = false, CreateNoWindow = true,
-                RedirectStandardOutput = true, RedirectStandardError = true
-            };
-            var lines = new List<string>();
-            using (var process = new Process { StartInfo = info })
-            {
-                DataReceivedEventHandler collect = delegate (object sender, DataReceivedEventArgs e)
-                {
-                    if (e.Data == null) return;
-                    lock (lines) lines.Add(e.Data);
-                    if (e.Data.StartsWith("[OK]") || e.Data.StartsWith("[X]") || e.Data.Contains(" scripts patched"))
-                        Log(e.Data);
-                };
-                process.OutputDataReceived += collect;
-                process.ErrorDataReceived += collect;
-                process.Start();
-                process.BeginOutputReadLine();
-                process.BeginErrorReadLine();
-                process.WaitForExit();
-                lock (lines)
-                {
-                    try { File.WriteAllLines(Path.Combine(Path.GetDirectoryName(tool), "adcpatch.log"), lines); } catch { }
-                }
-                bool ok = process.ExitCode == 0 && !GameScriptsMissing();
-                if (ok)
-                {
-                    try { File.WriteAllText(Path.Combine(output, "made-by.txt"), ToolHash(tool)); } catch { }
-                }
-                return ok;
-            }
         }
 
         void RequireGameClosedForShaderPreparation()
@@ -4311,14 +4233,6 @@ namespace RyGT
                         !ReadSetting("Vulkan", "pipeline_cache_enabled", true))
                         WriteSetting("Vulkan", "pipeline_cache_enabled", true);
                     RequireGameClosedForShaderPreparation();
-                    // Folders set up by an earlier RyGTS.exe or adcpatch get the offline livery scripts
-                    // (again) now (a few seconds).
-                    if (GameScriptsOutdated() && Directory.Exists(gameDir))
-                    {
-                        SetStatus("Making the offline livery scripts from your game files...");
-                        try { BuildGameScripts(gameDir, updateDir); }
-                        catch (Exception e) { Log("Offline livery scripts: " + e.Message); }
-                    }
                     verified = true;
                 }
                 catch (Exception e) { failure = e; Log("ERROR: " + e.Message); }

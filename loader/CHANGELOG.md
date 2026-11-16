@@ -6,6 +6,13 @@ The version lives in `loader/Version.cs`. To release a change, bump
 `LauncherVersion.Value` there and add a section here with the same number;
 CI fails when the two disagree.
 
+## 0.2.4 - 2026-11-16
+
+* FIX-GTS-294: Set up and Play no longer make the offline livery and decal scripts from the game's
+  files. Reading them needed the game volumes' decryption keys, so adcpatch's all and extract
+  commands and its GTToolsSharp dependency are removed too. Scripts already in patches\scripts
+  are still used; adcpatch can still patch scripts you supply yourself.
+
 ## 0.2.3 - 2026-11-16
 
 * FIX-GTS-293: Set up and Play no longer copy shader programs out of the game's files. That step
