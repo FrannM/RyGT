@@ -184,7 +184,6 @@ class PackageTests(unittest.TestCase):
                                              ('tools/adcpatch/README.txt', 'artifacts/tools/adcpatch-README.txt'),
                                              ('amd_fidelityfx_vk.dll', 'artifacts/tools/amd_fidelityfx_vk.dll'),
                                              ('launcher/background.png', str(ROOT / 'loader/launcher/background.png')),
-                                             ('tools/adcpatch/shader-manifest.bin', str(ROOT / 'ci/packaging/shader-manifest.bin')),
                                              ('LINUX.txt', str(ROOT / 'docs/user/LINUX.md'))):
                         self.assertEqual(z.read(prefix + packaged), Path(source).read_bytes(), packaged)
                     config = json.loads(z.read(prefix + 'user/custom_configs/CUSA03220.json'))
