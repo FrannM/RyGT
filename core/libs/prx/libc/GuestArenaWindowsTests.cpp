@@ -127,6 +127,17 @@ int main() {
             Require(backing[(Pieces - 1 - i) * Piece] == 100 + i, "streamed piece maps the wrong backing offset");
         }
         Require(Query(stream + Pieces * Piece).State == MEM_RESERVE, "placeholder after the streamed pieces was lost");
+        // FIX-RT-001: an alias across pieces from different backing offsets is stitched run by run.
+        {
+            auto* stitched = static_cast<std::uint8_t*>(GuestArenaMapAlias_nid_postfix(reinterpret_cast<std::uintptr_t>(stream), 4 * Piece));
+            Require(stitched != nullptr, "no alias across pieces of different backing offsets");
+            for (int i = 0; i < 4; ++i) Require(stitched[i * Piece] == 100 + i, "stitched alias shows the wrong piece");
+            stitched[2 * Piece + 1] = 77;
+            Require(stream[2 * Piece + 1] == 77 && backing[(Pieces - 3) * Piece + 1] == 77, "stitched alias does not share the backing");
+            GuestArenaUnmapAlias_nid_postfix(stitched);
+            Require(stream[2 * Piece + 1] == 77, "unmapping a stitched alias damaged guest memory");
+            stream[2 * Piece + 1] = 0;
+        }
         GuestArenaMap_nid_postfix(stream + Pieces * Piece, Page, pool, 0, PAGE_READONLY);
         Require(stream[Pieces * Piece] == 115 && Query(stream + Pieces * Piece).Protect == PAGE_READONLY, "single page streamed map");
         GuestArenaReset_nid_postfix(stream + 7 * Piece, Piece);
