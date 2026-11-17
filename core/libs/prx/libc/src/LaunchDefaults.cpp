@@ -107,7 +107,11 @@ void Apply() {
 #endif
     // As the launcher's StartGame (loader/RyGTLoader.cs) sets them; keep the two in step.
     SetIfMissing("RYTY_INTEROP_BASE", "8000000000");
-    SetIfMissing("RYGT_NATIVE_INPLACE_RANGES", "1020000000+1de000,1020235000+1dd000,1020407000+b000,200000000+8000000");
+    // FIX-RT-002: GT7's GPU culling memory as one range, gap included. In PS4 Pro mode its larger
+    // depth pyramid moves visibility data into 0x10201de000-0x1020235000, between the ranges
+    // listed for the base PS4, and those writes went through a renderer region again (scenery
+    // missing for single frames). The same list serves the base PS4, Pro and Pro at 4K.
+    SetIfMissing("RYGT_NATIVE_INPLACE_RANGES", "1020000000+412000,200000000+8000000");
     SetIfMissing("RYGT_NATIVE_INPLACE_FROM", "e000000000");
     if (!root.empty()) SetIfMissing("RYGT_LOG_DIRECTORY", root + "logs\\" + GameSerial::GameSerial());
     SetIfMissing("SHADGT_FPS_LOCK", Setting(config, "race_fps_lock") == "60" ? "60" : "30");

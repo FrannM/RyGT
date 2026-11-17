@@ -1342,7 +1342,10 @@ namespace RyGT
                         // PERF-161: GT7's per-frame memory (0x200000000-0x208000000), which the CPU rewrites
                         // every frame and a few compute passes write too, stays in guest memory: kept in a
                         // renderer region, each CPU write faulted (about 60,000 a second) and was copied in.
-                        start.EnvironmentVariables["RYGT_NATIVE_INPLACE_RANGES"] = "1020000000+1de000,1020235000+1dd000,1020407000+b000,200000000+8000000";
+                        // FIX-RT-002: GT7's GPU culling memory as one range (0x1020000000-0x1020412000),
+                        // gap included: PS4 Pro mode moves visibility data into the gap the base PS4's
+                        // three ranges left out. Keep in step with core/libs/prx/libc/src/LaunchDefaults.cpp.
+                        start.EnvironmentVariables["RYGT_NATIVE_INPLACE_RANGES"] = "1020000000+412000,200000000+8000000";
                         // FIX-213: GT7 reads back what the GPU writes into its CPU pools from 0xe000000000
                         // up (GT Sport's are above 0xf000000000, the renderer's default); kept in a
                         // renderer region, the CPU saw stale data and culled the whole rear-view mirror.
