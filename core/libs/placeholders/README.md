@@ -27,6 +27,11 @@ ways, both kept now:
 
 Otherwise the list is the same as GT7's stub, export for export.
 
+FIX-RT-003: a line may end in `wait=timeval` instead: the function's first argument points to a PS4
+timeval and it sleeps that long (at most 100 ms) before returning 0. `libSceUsbd +wU6CGuZcWk`
+(`sceUsbdHandleEventsTimeout`) is one: GT7's `USBEV` thread calls it in a loop, and while it returned at
+once that thread spun one core for the whole session.
+
 To implement one of these libraries for real, add it under `core/libs/prx/` and delete its list here.
 
 `libSceSsl2.prx` is not a placeholder: it is the PS4's second module name for the libSceSsl API, so the build
