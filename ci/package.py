@@ -12,16 +12,13 @@ import zipfile
 FORBIDDEN = {'.self', '.elf', '.sprx', '.pkg', '.vol', '.adc', '.log', '.pdb'}
 # FEAT-GTS-263: what ci/build-windows.ps1 -Target Tools produces (adcpatch and AMD's FidelityFX runtime).
 TOOLS_FILES = ('adcpatch.exe', 'grim.ad', 'openGrim.ad', 'adcpatch-README.txt', 'GTAdhocToolchain-LICENSE.txt',
-               'GTToolsSharp-LICENSE.txt', 'PDTools-LICENSE.txt', 'amd_fidelityfx_vk.dll', 'amd_fidelityfx_vk-LICENSE.txt')
+               'amd_fidelityfx_vk.dll', 'amd_fidelityfx_vk-LICENSE.txt')
 # Files that come from this repository.
 REPOSITORY_FILES = (('loader/launcher/background.png', 'launcher/background.png'),
                     ('loader/launcher/README.txt', 'launcher/README.txt'),
                     ('docs/user/LINUX.md', 'LINUX.txt'),
                     ('docs/user/CAMERA_MANAGER.md', 'CAMERA_MANAGER.txt'),
                     ('ci/packaging/CUSA03220.json', 'user/custom_configs/CUSA03220.json'),
-                    # FEAT-GTS-284: the shared shader manifest (records, pipeline recipes, the shader
-                    # index; no shader code), made with adcpatch manifestpack.
-                    ('ci/packaging/shader-manifest.bin', 'tools/adcpatch/shader-manifest.bin'),
                     ('tools/amd/Add-To-AMD-Software.ps1', 'tools/amd/Add-To-AMD-Software.ps1'),
                     ('LICENSE', 'LICENSE'),
                     # FEAT-GTS-287: the DLSS plugin's own licence (MIT; dlss\ holds only the DLL).

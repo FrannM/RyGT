@@ -1078,27 +1078,8 @@ namespace RyGT
                 CopyDirectory(font2Dir, Path.Combine(root, "sys", "common", "font2"));
             }
 
-            // 5. Offline livery and decal scripts, made from this game's own files.
-            SetStatus("Making the offline livery scripts from your game files...");
-            if (!BuildGameScripts(baseDir, updateDir))
-                Log("Note: the offline livery scripts could not be made; liveries will not apply offline.");
-
-            // 6. Shaders other players have met, prepared from this game's own files, into the
-            // shader folder every RyGT folder shares.
+            // 5. The shader folder every RyGT folder shares.
             UsePortableShaderCache();
-            RequireGameClosedForShaderPreparation();
-            if (File.Exists(ShaderPack))
-            {
-                SetStatus("Preparing shaders from your game files (a few minutes)...");
-                if (!PrepareShaders(baseDir, updateDir))
-                    Log("Note: the shaders could not be prepared; they will compile while you play.");
-            }
-            if (File.Exists(ShaderManifest))
-            {
-                SetStatus("Preparing shaders from your game files (a few minutes)...");
-                if (!PrepareShaderManifest(baseDir, updateDir))
-                    Log("Note: the shaders could not be prepared; they will compile while you play.");
-            }
 
             GameBuildIntegrity.Record(Exe);
             Log("Recorded GTSport.exe SHA-256: " + GameBuildIntegrity.Hash(Exe));
@@ -1106,206 +1087,10 @@ namespace RyGT
         }
 
 
-        // The game scripts GTS-005 serves from patches\scripts: offline livery apply (UI_KIT, LIVERY2,
-        // THUMBNAIL) and the decals folder (GALLERY, GRIM). They are made from Polyphony's scripts, so
-        // they are not shipped: tools\adcpatch\adcpatch.exe reads them from the player's own game
-        // volumes (GTToolsSharp) and patches them (GTAdhocToolchain), both by Nenkai, MIT licensed.
-        static readonly string[] GameScripts = { "UI_KIT.ADC", "LIVERY2.ADC", "THUMBNAIL.ADC", "GALLERY.ADC", "GRIM.ADC" };
-
-
-        bool GameScriptsMissing()
-        {
-            string dir = Path.Combine(root, "patches", "scripts");
-            return GameScripts.Any(name => !File.Exists(Path.Combine(dir, name)));
-        }
-
-
-        // Missing, or made by another toolsdcpatch (a newer build ships a newer one): the scripts
-        // folder keeps a hash of the adcpatch.exe that made it.
-        bool GameScriptsOutdated()
-        {
-            if (GameScriptsMissing()) return true;
-            string tool = Path.Combine(root, "tools", "adcpatch", "adcpatch.exe");
-            if (!File.Exists(tool)) return false;
-            string stamp = Path.Combine(root, "patches", "scripts", "made-by.txt");
-            try { return !File.Exists(stamp) || File.ReadAllText(stamp).Trim() != ToolHash(tool); }
-            catch { return true; }
-        }
-
-
-        static string ToolHash(string tool)
-        {
-            using (var sha = System.Security.Cryptography.SHA256.Create())
-            using (var stream = File.OpenRead(tool))
-                return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-", "");
-        }
-
-
-        bool BuildGameScripts(string baseDir, string updateDir)
-        {
-            string tool = Path.Combine(root, "tools", "adcpatch", "adcpatch.exe");
-            if (!File.Exists(tool)) { Log("tools\\adcpatch\\adcpatch.exe is missing."); return false; }
-            string output = Path.Combine(root, "patches", "scripts");
-            Func<string, string> arg = d => "\"" + (d ?? "").TrimEnd('\\') + "\"";
-            string arguments = "all " + arg(baseDir) + " " + arg(updateDir) + " " + arg(output);
-            Log("> adcpatch.exe " + arguments);
-            var info = new ProcessStartInfo(tool, arguments)
-            {
-                WorkingDirectory = Path.GetDirectoryName(tool), UseShellExecute = false, CreateNoWindow = true,
-                RedirectStandardOutput = true, RedirectStandardError = true
-            };
-            var lines = new List<string>();
-            using (var process = new Process { StartInfo = info })
-            {
-                DataReceivedEventHandler collect = delegate (object sender, DataReceivedEventArgs e)
-                {
-                    if (e.Data == null) return;
-                    lock (lines) lines.Add(e.Data);
-                    if (e.Data.StartsWith("[OK]") || e.Data.StartsWith("[X]") || e.Data.Contains(" scripts patched"))
-                        Log(e.Data);
-                };
-                process.OutputDataReceived += collect;
-                process.ErrorDataReceived += collect;
-                process.Start();
-                process.BeginOutputReadLine();
-                process.BeginErrorReadLine();
-                process.WaitForExit();
-                lock (lines)
-                {
-                    try { File.WriteAllLines(Path.Combine(Path.GetDirectoryName(tool), "adcpatch.log"), lines); } catch { }
-                }
-                bool ok = process.ExitCode == 0 && !GameScriptsMissing();
-                if (ok)
-                {
-                    try { File.WriteAllText(Path.Combine(output, "made-by.txt"), ToolHash(tool)); } catch { }
-                }
-                return ok;
-            }
-        }
-
-
-        // Shader pre-build: tools\adcpatch\shaders.pack holds the settings of the shaders and
-        // pipelines RyGT's players have met (no shader code). shaderprep writes them into the
-        // shader cache and copies each shader's program out of this PC's game files; the renderer
-        // translates them on the splash screen and builds the pipelines there, so they don't
-        // pause the game the first time a car or track shows up.
-        string ShaderPack { get { return Path.Combine(root, "tools", "adcpatch", "shaders.pack"); } }
-
-        string ShaderPackStamp { get { return Path.Combine(ShaderFolder, "shaders-pack.txt"); } }
-
-
-        // FEAT-GTS-284: tools\adcpatch\shader-manifest.bin (adcpatch manifestpack): the shader
-        // manifest RyGT's players have built (records of shader translations and pipeline recipes,
-        // no shader code) and the index of where each program is in the game's files.
-        // manifestprep writes them into the shader folder and copies each recorded program out of
-        // this PC's game files; the renderer translates them and builds their pipelines on the
-        // splash screen. Records and programs already there are kept, so a newer manifest only
-        // adds its new ones (seconds) after the first time (about two minutes).
-        string ShaderManifest { get { return Path.Combine(root, "tools", "adcpatch", "shader-manifest.bin"); } }
-
-        string ShaderManifestStamp { get { return Path.Combine(ShaderFolder, "shader-manifest.txt"); } }
-
-
-        bool ShaderManifestOutdated()
-        {
-            if (!File.Exists(ShaderManifest)) return false;
-            try { return !File.Exists(ShaderManifestStamp) || File.ReadAllText(ShaderManifestStamp).Trim() != ToolHash(ShaderManifest); }
-            catch { return true; }
-        }
-
-
-        bool PrepareShaderManifest(string baseDir, string updateDir)
-        {
-            string tool = Path.Combine(root, "tools", "adcpatch", "adcpatch.exe");
-            if (!File.Exists(tool) || !File.Exists(ShaderManifest)) return false;
-            string cache = ShaderFolder;
-            Directory.CreateDirectory(cache);
-            Func<string, string> arg = d => "\"" + (d ?? "").TrimEnd('\\') + "\"";
-            string arguments = "manifestprep " + arg(baseDir) + " " + arg(updateDir) + " " + arg(ShaderManifest) + " " + arg(cache);
-            Log("> adcpatch.exe " + arguments);
-            var info = new ProcessStartInfo(tool, arguments)
-            {
-                WorkingDirectory = Path.GetDirectoryName(tool), UseShellExecute = false, CreateNoWindow = true,
-                RedirectStandardOutput = true, RedirectStandardError = true
-            };
-            var lines = new List<string>();
-            using (var process = new Process { StartInfo = info })
-            {
-                DataReceivedEventHandler collect = delegate (object sender, DataReceivedEventArgs e)
-                {
-                    if (e.Data == null) return;
-                    lock (lines) lines.Add(e.Data);
-                    if (e.Data.Contains(" programs copied")) Log(e.Data);
-                };
-                process.OutputDataReceived += collect;
-                process.ErrorDataReceived += collect;
-                process.Start();
-                process.BeginOutputReadLine();
-                process.BeginErrorReadLine();
-                process.WaitForExit();
-                lock (lines)
-                {
-                    try { File.WriteAllLines(Path.Combine(Path.GetDirectoryName(tool), "manifestprep.log"), lines); } catch { }
-                }
-                if (process.ExitCode != 0) return false;
-                try { File.WriteAllText(ShaderManifestStamp, ToolHash(ShaderManifest)); } catch { }
-                return true;
-            }
-        }
-
-
         void RequireGameClosedForShaderPreparation()
         {
             if (Process.GetProcessesByName("GTSport").Length != 0)
                 throw new IOException("Close the game before checking or updating its shader cache.");
-        }
-
-
-        bool ShadersOutdated()
-        {
-            if (!File.Exists(ShaderPack)) return false;
-            try { return !File.Exists(ShaderPackStamp) || File.ReadAllText(ShaderPackStamp).Trim() != ToolHash(ShaderPack); }
-            catch { return true; }
-        }
-
-
-        bool PrepareShaders(string baseDir, string updateDir)
-        {
-            string tool = Path.Combine(root, "tools", "adcpatch", "adcpatch.exe");
-            if (!File.Exists(tool) || !File.Exists(ShaderPack)) return false;
-            string cache = ShaderFolder;
-            Directory.CreateDirectory(cache);
-            Func<string, string> arg = d => "\"" + (d ?? "").TrimEnd('\\') + "\"";
-            string arguments = "shaderprep " + arg(baseDir) + " " + arg(updateDir) + " " + arg(ShaderPack) + " " + arg(cache);
-            Log("> adcpatch.exe " + arguments);
-            var info = new ProcessStartInfo(tool, arguments)
-            {
-                WorkingDirectory = Path.GetDirectoryName(tool), UseShellExecute = false, CreateNoWindow = true,
-                RedirectStandardOutput = true, RedirectStandardError = true
-            };
-            var lines = new List<string>();
-            using (var process = new Process { StartInfo = info })
-            {
-                DataReceivedEventHandler collect = delegate (object sender, DataReceivedEventArgs e)
-                {
-                    if (e.Data == null) return;
-                    lock (lines) lines.Add(e.Data);
-                    if (e.Data.Contains(" programs copied")) Log(e.Data);
-                };
-                process.OutputDataReceived += collect;
-                process.ErrorDataReceived += collect;
-                process.Start();
-                process.BeginOutputReadLine();
-                process.BeginErrorReadLine();
-                process.WaitForExit();
-                lock (lines)
-                {
-                    try { File.WriteAllLines(Path.Combine(Path.GetDirectoryName(tool), "shaderprep.log"), lines); } catch { }
-                }
-                if (process.ExitCode != 0) return false;
-                try { File.WriteAllText(ShaderPackStamp, ToolHash(ShaderPack)); } catch { }
-                return true;
-            }
         }
 
 
@@ -1438,28 +1223,6 @@ namespace RyGT
                         !ReadSetting("Vulkan", "pipeline_cache_enabled", true))
                         WriteSetting("Vulkan", "pipeline_cache_enabled", true);
                     RequireGameClosedForShaderPreparation();
-                    // Folders set up by an earlier launcher (RyGTS.exe) or adcpatch get the offline livery scripts
-                    // (again) now (a few seconds).
-                    if (GameScriptsOutdated() && Directory.Exists(gameDir))
-                    {
-                        SetStatus("Making the offline livery scripts from your game files...");
-                        try { BuildGameScripts(gameDir, updateDir); }
-                        catch (Exception e) { Log("Offline livery scripts: " + e.Message); }
-                    }
-                    // A newer shaders.pack (or a folder set up before it existed): prepared once now.
-                    if (ShadersOutdated() && Directory.Exists(gameDir))
-                    {
-                        SetStatus("Preparing shaders from your game files (a few minutes, once)...");
-                        try { PrepareShaders(gameDir, updateDir); }
-                        catch (Exception e) { Log("Shaders: " + e.Message); }
-                    }
-                    // FEAT-GTS-284: a newer shipped shader manifest: its new records and programs.
-                    if (ShaderManifestOutdated() && Directory.Exists(gameDir))
-                    {
-                        SetStatus("Preparing shaders from your game files (a few minutes the first time)...");
-                        try { PrepareShaderManifest(gameDir, updateDir); }
-                        catch (Exception e) { Log("Shaders: " + e.Message); }
-                    }
                     verified = true;
                 }
                 catch (Exception e) { failure = e; Log("ERROR: " + e.Message); }
@@ -1534,11 +1297,9 @@ namespace RyGT
                         // driver cache lacks (after a driver update) are compiled at start from the recipes
                         // kept. Only when checked, so a script that sets them itself keeps its setting (and
                         // the Advanced page, applied below, still wins).
-                        // FEAT-GTS-284: and always once the shipped shader manifest is prepared: its
-                        // records are translated on the splash screen (the ones the store has are
-                        // skipped in a moment). FEAT-GTS-285: on by default (the renderer's default
-                        // too), so unchecked turns it off.
-                        if (shaderPretranslate || File.Exists(Path.Combine(root, "shaders", "shader-manifest.txt")))
+                        // FEAT-GTS-285: on by default (the renderer's default too), so unchecked turns
+                        // it off.
+                        if (shaderPretranslate)
                         {
                             start.EnvironmentVariables["SHADGT_MANIFEST_RECORD"] = "1";
                             start.EnvironmentVariables["SHADGT_MANIFEST_PRETRANSLATE"] = "1";

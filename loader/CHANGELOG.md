@@ -6,6 +6,19 @@ The version lives in `loader/Version.cs`. To release a change, bump
 `LauncherVersion.Value` there and add a section here with the same number;
 CI fails when the two disagree.
 
+## 0.3.2 - 2026-11-18
+
+Brings 0.2.3 and 0.2.4 from development (the merge into FEAT-GTS-291's branch):
+
+* FIX-GTS-294: Set up and Play no longer make the offline livery and decal scripts from the game's
+  files. Reading them needed the game volumes' decryption keys, so adcpatch's all and extract
+  commands and its GTToolsSharp dependency are removed too. Scripts already in patches\scripts
+  are still used; adcpatch can still patch scripts you supply yourself.
+* FIX-GTS-293: Set up and Play no longer copy shader programs out of the game's files. That step
+  needed the game volumes' decryption keys, so adcpatch's shader commands (shaderindex,
+  shadercodes, manifestpack, manifestprep, shaderpack, shaderprep) are removed too. Shaders now
+  compile the first time they are needed, and the shader folder keeps them for later starts.
+
 ## 0.3.1 - 2026-11-15
 
 * FEAT-GTS-291: The launcher is RyGT Launcher, RyGTLauncher.exe, for both games: the window title

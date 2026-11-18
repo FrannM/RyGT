@@ -49,6 +49,7 @@ jobs:
         env:
           SOURCE_OVERRIDE_SHA: ${{ steps.controller.outputs.commit }}
           RENDERER_OVERRIDE_SHA: ${{ inputs.renderer_sha }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: python3 ci/github-registry/registry_ci.py resolve ci
   windows:
     needs: [source, tests]

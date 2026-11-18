@@ -14,6 +14,11 @@ spec.loader.exec_module(source)
 SHA='a'*40
 
 class GitHubSourceTests(unittest.TestCase):
+    def setUp(self):
+        environment = patch.dict(source.os.environ)
+        environment.start(); self.addCleanup(environment.stop)
+        source.os.environ.pop('GITHUB_TOKEN', None)  # FIX-GTS-295: requests stay plain URLs here
+
     def test_package_workflows_fetch_only_github_runtime(self):
         root = HERE.parent
         for folder in (root / '.github/workflows', HERE / 'github-registry'):
@@ -49,3 +54,15 @@ class GitHubSourceTests(unittest.TestCase):
         response=io.BytesIO(json.dumps({'sha':'b'*40}).encode())
         with patch.object(source.urllib.request,'urlopen',return_value=response):
             with self.assertRaises(ValueError):source.wait_for_commit('api',SHA)
+
+class GithubRequestTest(unittest.TestCase):
+    def test_token_only_for_the_api(self):
+        api = 'https://api.github.com/repos/RyGT-Team/RyGTS/commits/development'
+        with patch.dict(source.os.environ, {'GITHUB_TOKEN': 'abc'}):
+            request = source.github_request(api)
+            self.assertEqual(request.full_url, api)
+            self.assertEqual(request.get_header('Authorization'), 'Bearer abc')
+            raw = 'https://raw.githubusercontent.com/RyGT-Team/RyGTS/x/renderer/source.json'
+            self.assertEqual(source.github_request(raw), raw)
+        with patch.dict(source.os.environ, {}, clear=True):
+            self.assertEqual(source.github_request(api), api)

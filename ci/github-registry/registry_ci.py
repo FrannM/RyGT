@@ -1,7 +1,7 @@
 """Resolve GitHub sources and verify CI packages."""
 import sys
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
-from github_source import wait_for_commit
+from github_source import github_request, wait_for_commit
 import hashlib
 import json
 import os
@@ -46,7 +46,7 @@ def renderer_revision(commit):
         return wait_for_commit(RENDERER_API, override)
     if revision == 'HEAD':
         url = RENDERER_API + '/commits/ryty-gpu'
-        with urllib.request.urlopen(url, timeout=60) as response:
+        with urllib.request.urlopen(github_request(url), timeout=60) as response:
             revision = json.load(response)['sha']
     if not isinstance(revision, str) or not re.fullmatch('[0-9a-f]{40}', revision):
         raise ValueError('Invalid renderer revision')
@@ -59,7 +59,7 @@ def resolve(channel=None):
     if commit:
         commit = wait_for_commit(SOURCE_API, commit)
     else:
-        with urllib.request.urlopen(SOURCE_API + '/commits/development', timeout=60) as response:
+        with urllib.request.urlopen(github_request(SOURCE_API + '/commits/development'), timeout=60) as response:
             commit = json.load(response)['sha']
     if not isinstance(commit, str) or not re.fullmatch('[0-9a-f]{40}', commit):
         raise ValueError('Invalid source commit')
