@@ -2992,8 +2992,21 @@ namespace RyGT
             thread.Start();
         }
 
-        /// The pictures behind the home view: the game folder's launcher\background*.png or .jpg (not
-        /// the .bak ones), else the game's own pic1.png.
+        /// FIX-RT-008: the folders holding the selected game's launcher pictures, first its own one,
+        /// launcher\<serial>, then launcher itself when those pictures are this game's. A shared folder's
+        /// launcher\background.png and logo.png are GT Sport's (the RyGTS package ships them) while
+        /// GTSport.exe is there; in a folder with only GT7.exe (a ryGT7 release) they are GT7's.
+        List<string> PictureFolders()
+        {
+            var folders = new List<string> { Path.Combine(root, "launcher", info.TitleId) };
+            bool gts = File.Exists(Path.Combine(root, GameInfo.GTSport.ExeName)), gt7 = File.Exists(Path.Combine(root, GameInfo.GT7.ExeName));
+            if (gts ? target == GameKind.GTSport : !gt7 || target == GameKind.GT7) folders.Add(Path.Combine(root, "launcher"));
+            return folders;
+        }
+
+        /// The pictures behind the home view: launcher\<serial>\background*.png or .jpg, else
+        /// launcher\background* when they are this game's (PictureFolders; not the .bak ones), else the
+        /// picture built into the launcher, else the game's own pic1.png.
         List<Image> LoadBackgrounds()
         {
             var found = new List<Image>();
@@ -3004,10 +3017,10 @@ namespace RyGT
                 if (builtIn != null) found.Add(builtIn);
                 return found;
             }
-            string folder = Path.Combine(root, "launcher");
+            foreach (string folder in PictureFolders())
             try
             {
-                if (Directory.Exists(folder))
+                if (found.Count == 0 && Directory.Exists(folder))
                 {
                     var paths = Directory.GetFiles(folder, "background*.*")
                         .Where(p => p.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || p.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase))
@@ -3223,15 +3236,17 @@ namespace RyGT
         }
 
 
-        /// The logo, launcher\logo.png next to RyGTLauncher.exe (null without it: the title is text).
+        /// The logo: launcher\<serial>\logo.png, or launcher\logo.png when it is this game's
+        /// (PictureFolders), else the one built into the launcher.
         Image LoadLogo()
         {
             if (RootReady(target))
-            {
-                string path = Path.Combine(root, "launcher", "logo.png");
-                try { if (File.Exists(path)) return Image.FromStream(new MemoryStream(File.ReadAllBytes(path))); }
-                catch { }
-            }
+                foreach (string folder in PictureFolders())
+                {
+                    string path = Path.Combine(folder, "logo.png");
+                    try { if (File.Exists(path)) return Image.FromStream(new MemoryStream(File.ReadAllBytes(path))); }
+                    catch { }
+                }
             // FEAT-GTS-290: the game's RY logo built into RyGTLauncher.exe (RY GTS, RY GT7).
             return EmbeddedPicture(target == GameKind.GT7 ? "gt7-logo.png" : "gts-logo.png");
         }

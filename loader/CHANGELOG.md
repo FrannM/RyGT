@@ -6,6 +6,13 @@ The version lives in `loader/Version.cs`. To release a change, bump
 `LauncherVersion.Value` there and add a section here with the same number;
 CI fails when the two disagree.
 
+## 0.3.7 - 2026-11-20
+
+* FIX-RT-008: GT7 showed GT Sport's red picture in a shared folder: launcher\background.png (which the
+  RyGTS package ships) and launcher\logo.png were used for both games. They are GT Sport's now while
+  GTSport.exe is in the folder (a ryGT7-only folder keeps them for GT7); each game's own pictures go in
+  launcher\<serial>, and GT7 otherwise shows its built-in blue picture again.
+
 ## 0.3.6 - 2026-11-20
 
 * FIX-RT-007: `--game` (snapshots and `--setup --game`) used the GT7 folder an older launcher saved in

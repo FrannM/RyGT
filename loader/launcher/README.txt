@@ -5,3 +5,7 @@ files, or a plain dark background.
 
 logo.png, when present, is shown in place of the "GRAN TURISMO SPORT" title (on the home view and in
 the settings). Without it the title is drawn in text.
+
+GT Sport and GT7 in one folder: background.png and logo.png here are GT Sport's while GTSport.exe is in
+the folder. Each game's own pictures go in launcher\<serial> (launcher\CUSA03220 for GT Sport,
+launcher\CUSA24769 for GT7) and win over these; without any, GT7 shows the picture built into the launcher.
