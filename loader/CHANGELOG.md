@@ -6,6 +6,10 @@ The version lives in `loader/Version.cs`. To release a change, bump
 `LauncherVersion.Value` there and add a section here with the same number;
 CI fails when the two disagree.
 
+## 0.3.10 - 2026-11-20
+
+* FIX-GTS-526: GT Sport's Graphics page says "PS4 Pro Mode", no longer "PS4 Pro Mode (BROKEN)".
+
 ## 0.3.9 - 2026-11-20
 
 * FIX-GTS-491: After a GPU device loss, GT Sport and GT7 are no longer started again by the launcher.

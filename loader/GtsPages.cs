@@ -569,7 +569,7 @@ namespace RyGT
 
             var extras = Section(graphicsPage, "Enhancements");
             AddOption(extras, "Disable motion blur", "GPU", "disable_motion_blur", false);
-            AddOption(extras, "PS4 Pro Mode (BROKEN)", "GPU", "ps4_pro", false);
+            AddOption(extras, "PS4 Pro Mode", "GPU", "ps4_pro", false);
             uiHiresBox = AddOption(extras, "Draw the UI at screen resolution", "GPU", "ui_hires", false);
             AddOption(extras, "HDR (experimental; needs Windows HDR on)", "GPU", "hdr_allowed", false);
 
