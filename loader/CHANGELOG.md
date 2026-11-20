@@ -6,6 +6,14 @@ The version lives in `loader/Version.cs`. To release a change, bump
 `LauncherVersion.Value` there and add a section here with the same number;
 CI fails when the two disagree.
 
+## 0.3.4 - 2026-11-19
+
+* FEAT-RT-005: GT7 no longer has a folder of its own. Both games use the launcher's folder, since every
+  file either game writes there follows its serial; the Game page's GT7 folder field is gone. GT7 is
+  ready once that folder has GT7's files (libs\libSceTextToSpeech.prx, patches\CUSA24769.xml). A GT7
+  folder an older launcher saved is no longer used; the Game page names it, so its saves and settings
+  can be copied over.
+
 ## 0.3.3 - 2026-11-19
 
 * FIX-GTS-271 (from rygt7 7dbe4e2, which came after the merged 6178d0b): GT7's online-service keys

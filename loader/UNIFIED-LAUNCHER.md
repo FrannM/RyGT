@@ -12,13 +12,14 @@ and says where each feature lives now. FEAT-GTS-291 (0.3.1) gave it its own name
   are then built for that game. The fade runs on the launcher's animation timer (`Anim`) and is drawn double
   buffered: `Dark.Accent`, `AccentHover` and `AccentText` are read at paint time, and labels drawn in the
   accent colour are recoloured as it moves.
-- **One folder for both games, or one each.** FEAT-GTS-291: every name a game writes in its folder follows its serial
+- **One folder for both games.** FEAT-GTS-291: every name a game writes in its folder follows its serial
   (CUSA03220 GT Sport, CUSA24769 GT7): `user\custom_configs\<serial>.json`, `shaders\<serial>*`, `user\savedata\<serial>`
   (GAME-004/004), `logs\<serial>`, `app0\<serial>`, the settings `<serial>.RyGT.ini`, and `convert\<serial>`, `temp0\<serial>`,
   `data\<serial>` (`SharedNames` in `GameTarget.cs`). The runtime and renderer libraries are one build for both (one
-  `libs\libSceMbus.prx` too), so GTSport.exe and GT7.exe may sit in ONE folder. By default the launcher's own folder is
-  GT Sport's, and GT7's too when it is a ryGT7 folder (RyGT7.exe or RyGT7.exe.old, RyGT7.ini, CUSA24769.RyGT.ini,
-  GT7.exe or `patches\CUSA24769.xml`); GT7's folder can be another one, picked on the Game page, or the same.
+  `libs\libSceMbus.prx` too), so GTSport.exe and GT7.exe may sit in ONE folder. FEAT-RT-005: both games use the
+  launcher's own folder; there is no folder field. GT7 is ready there once the folder has GT7's files (RyGT7.exe or
+  RyGT7.exe.old, RyGT7.ini, CUSA24769.RyGT.ini, GT7.exe, `patches\CUSA24769.xml` or `libs\libSceTextToSpeech.prx`).
+  A `gt7_root` an older launcher saved in `RyGT-Launcher.ini` is kept but not used; the Game page names it.
   `user\input_config\default.ini` (the controller bindings) and `ryty-input.ini` / `ryty-wheel.ini` stay one for both.
 - **Settings.** Each game's settings are its `<serial>.RyGT.ini`, which the runtime reads too:
   - GT Sport: `CUSA03220.RyGT.ini`, `RyGT.ini` renamed, written line for line as before, plus its config JSON.

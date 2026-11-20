@@ -2489,12 +2489,8 @@ namespace RyGT
             var files = Section(page, gameInfo.Name);
             var boxes = new TextBox[5];
             pathBoxes[game] = boxes;
-            // GT Sport's folder is the launcher's own: no field for it. GT7's is picked here.
-            if (game == GameKind.GT7)
-            {
-                boxes[0] = AddRow(files, gameInfo.Product + " folder (" + gameInfo.ExeName + ")", state.RootOf(game), delegate { CommitRoot(game); });
-                boxes[0].Leave += delegate { CommitRoot(game); };
-            }
+            // FEAT-RT-005: both games' folder is the launcher's own (each game's files follow its serial),
+            // so neither has a folder field.
             var s = SettingsOf(game);
             if (game == GameKind.GTSport)
             {
@@ -2515,32 +2511,16 @@ namespace RyGT
                 boxes[i].Enabled = ready;
                 boxes[i].Leave += delegate { CommitPaths(game); };
             }
+            string former = game == GameKind.GT7 ? state.FormerGt7Root() : null;
             if (!ready)
                 files.Controls.Add(Hint(game == GameKind.GT7
-                    ? "Pick the folder you extracted the ryGT7 release to (the one with libs, converter and patches). GT7's settings, saves, logs and shaders stay in it."
-                    : "Pick the RyGTS folder (the one with converter, libs and tools). It must not be the ryGT7 folder: each game needs its own."));
+                    ? "GT7 uses this launcher's folder, like GT Sport. It doesn't have GT7's files yet (libs\\libSceTextToSpeech.prx, patches\\CUSA24769.xml): copy them in from the ryGT7 release."
+                    : "The launcher's folder can't be used (it must hold converter, libs and tools)."));
             else if (game == GameKind.GTSport)
                 files.Controls.Add(Hint("Without PS4 dumped fonts, some in-game UI fonts may not draw or appear correctly."));
-        }
-
-        /// A game's folder field was changed: kept in RyGT-Launcher.ini, and the pages follow it.
-        void CommitRoot(GameKind game)
-        {
-            TextBox[] boxes;
-            if (!pathBoxes.TryGetValue(game, out boxes) || boxes[0] == null || boxes[0].IsDisposed) return;
-            string text = boxes[0].Text.Trim().TrimEnd('\\');
-            if (string.Equals(text, state.RootOf(game), StringComparison.OrdinalIgnoreCase)) return;
-            CommitPaths();
-            state.SetRoot(game, text);
-            MigrateGt7Serial(); // GAME-004, FEAT-GTS-291: a game's folder was chosen
-            try { state.Save(); }
-            catch (Exception e) { MessageBox.Show(this, "Could not save the folder: " + e.Message); }
-            BeginInvoke((Action)delegate
-            {
-                BuildPages();
-                ShowGameOnHome(game == target);
-                if (game == target && RootReady(game)) { ClearUpdate(); if (ReadSetting("Launcher", "check_updates", true)) CheckForUpdate(false); }
-            });
+            if (former != null)
+                files.Controls.Add(Hint("GT7 used to have its own folder, " + former + ". Its saves and settings are still there: " +
+                                        "copy user\\savedata\\CUSA24769 and CUSA24769.RyGT.ini into this folder to keep them."));
         }
 
         /// The Game page's paths into each game's settings (saved when they changed).
