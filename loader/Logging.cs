@@ -22,17 +22,24 @@ namespace RyGT
             return path;
         }
 
-        internal static string PrepareRuntimeLogs(string root)
+        /// A game's log folder: logs\<serial> (CUSA03220 GT Sport, CUSA24769 GT7), so two games' logs
+        /// never mix in one folder.
+        internal static string Folder(string root, string serial)
         {
-            foreach (string name in new[] { "stdout.log", "stderr.log" })
-                using (var file = new FileStream(Prepare(root, name), FileMode.Create,
-                                                FileAccess.Write, FileShare.ReadWrite)) { }
-            return Path.Combine(root, "logs");
+            return Path.Combine(root, "logs", serial);
         }
 
-        internal static string Prepare(string root, string name)
+        internal static string PrepareRuntimeLogs(string root, string serial)
         {
-            string directory = Path.Combine(root, "logs");
+            foreach (string name in new[] { "stdout.log", "stderr.log" })
+                using (var file = new FileStream(Prepare(root, name, serial), FileMode.Create,
+                                                FileAccess.Write, FileShare.ReadWrite)) { }
+            return Folder(root, serial);
+        }
+
+        internal static string Prepare(string root, string name, string serial)
+        {
+            string directory = Folder(root, serial);
             Directory.CreateDirectory(directory);
             string stamp = DateTime.UtcNow.ToString("yyyyMMdd'T'HHmmssfff'Z'", System.Globalization.CultureInfo.InvariantCulture);
             string legacy = Path.Combine(root, name);

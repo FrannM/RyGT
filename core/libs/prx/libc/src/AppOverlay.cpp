@@ -7,6 +7,17 @@
 #include <system_error>
 #include <utility>
 
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+#include "GameSerial.hpp"
+
 namespace Libc {
 
 AppOverlay::AppOverlay(std::filesystem::path top, std::vector<std::filesystem::path> lower)
@@ -137,7 +148,7 @@ std::string_view Trim(std::string_view text) {
 
 }
 
-std::vector<std::filesystem::path> ConfiguredApp0Layers(const std::filesystem::path& root) {
+std::vector<std::filesystem::path> ConfiguredApp0Layers(const std::filesystem::path& root, const std::string& serial) {
     std::vector<std::filesystem::path> candidates;
 #ifdef _WIN32
     if (const wchar_t* value = _wgetenv(L"RYGT_APP0_LAYERS"); value && *value) {
@@ -164,7 +175,8 @@ std::vector<std::filesystem::path> ConfiguredApp0Layers(const std::filesystem::p
 #endif
     else {
         // The launcher's settings (UTF-8): game= is the base game folder, update= its update.
-        std::ifstream ini(root / "RyGT.ini", std::ios::binary);
+        // FEAT-GTS-291: the game's own <serial>.RyGT.ini (GameSerial::SettingsIniPath).
+        std::ifstream ini(GameSerial::SettingsIniPath(root, serial.c_str()), std::ios::binary);
         std::string line;
         std::filesystem::path game, update;
         while (std::getline(ini, line)) {
@@ -189,12 +201,19 @@ std::vector<std::filesystem::path> ConfiguredApp0Layers(const std::filesystem::p
         if (!std::filesystem::is_directory(candidate, folderError)) continue;
         auto canonical = std::filesystem::weakly_canonical(candidate, folderError);
         if (folderError) canonical = candidate;
-        if (canonical == app0) continue;
+        if (canonical == app0 || canonical.parent_path() == app0) continue;
         bool duplicate = false;
         for (const auto& layer : layers) duplicate = duplicate || layer == canonical;
         if (!duplicate) layers.push_back(canonical);
     }
     return layers;
+}
+
+std::filesystem::path App0Top(const std::filesystem::path& root, const std::string& serial) {
+    const auto app0 = root / "app0";
+    std::error_code error;
+    if (!serial.empty() && std::filesystem::is_directory(app0 / serial, error)) return app0 / serial;
+    return app0;
 }
 
 }

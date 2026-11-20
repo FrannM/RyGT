@@ -58,7 +58,7 @@ namespace RyGT
             helperPath = Path.Combine(root, "tools", "ryty-feel-test.exe");
             if (!File.Exists(helperPath)) helperPath = Path.Combine(root, "ryty-feel-test.exe");
 
-            Text = "RyGTS - HD rumble & adaptive triggers";
+            Text = "RyGT Launcher - HD rumble & adaptive triggers";
             Font = new Font("Segoe UI", 9f);
             StartPosition = FormStartPosition.CenterParent;
             ClientSize = new Size(780, 820);

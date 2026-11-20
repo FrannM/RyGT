@@ -11,8 +11,8 @@ $out = Join-Path (Get-Location) ("artifacts/" + $Target.ToLowerInvariant() + $su
 New-Item -ItemType Directory -Force $out | Out-Null
 if ($Target -eq 'Launcher') {
     Invoke-Checked 'cmd.exe' @('/d','/c', 'loader\build.cmd', $out, $Flavor)
-    if (!(Test-Path "$out/RyGTS.exe")) { throw 'Launcher output missing' }
-    if ($env:RYGT_CODESIGN -eq '1') { & (Join-Path $PSScriptRoot 'sign-windows.ps1') -Path "$out/RyGTS.exe" }
+    if (!(Test-Path "$out/RyGTLauncher.exe")) { throw 'Launcher output missing' }
+    if ($env:RYGT_CODESIGN -eq '1') { & (Join-Path $PSScriptRoot 'sign-windows.ps1') -Path "$out/RyGTLauncher.exe" }
 } elseif ($Target -eq 'Runtime') {
     # FEAT-GTS-260: the runtime libraries (libs/*.prx) and the MinGW runtime DLLs beside GTSport.exe,
     # built with the pinned MSYS2 UCRT64 GCC and FFmpeg package in ci/runtime-toolchain.json. Only the
@@ -44,6 +44,12 @@ if ($Target -eq 'Launcher') {
         Copy-Item $built[0].FullName $out
     }
     foreach ($dll in 'libgcc_s_seh-1.dll','libstdc++-6.dll','libwinpthread-1.dll') { Copy-Item "$toolchain/$dll" $out }
+    # FEAT-RT-006: GT7's RyGTServer decompresses GT7's messages with zstd (server\libzstd.dll), the pinned
+    # toolchain's own, with its licence.
+    $zstdLicense = Join-Path (Split-Path $toolchain -Parent) 'share/licenses/zstd/LICENSE'
+    if (!(Test-Path "$toolchain/libzstd.dll") -or !(Test-Path $zstdLicense)) { throw 'Pinned toolchain has no libzstd.dll or its licence' }
+    Copy-Item "$toolchain/libzstd.dll" $out
+    Copy-Item $zstdLicense "$out/zstd-LICENSE.txt"
     Copy-Item ci/runtime-toolchain.json "$out/RUNTIME-TOOLCHAIN.json"
     Write-Host "Runtime: $($libraries.Count) libraries, the converter and the wheel probe built with $compiler"
 } elseif ($Target -eq 'Tools') {
@@ -74,7 +80,29 @@ if ($Target -eq 'Launcher') {
         Invoke-WebRequest -UseBasicParsing $file[0] -OutFile "$out/$($file[2])"
         if ((Get-FileHash "$out/$($file[2])" -Algorithm SHA256).Hash.ToLowerInvariant() -cne $file[1]) { throw "SHA-256 mismatch for $($file[2])" }
     }
-    Write-Host "Tools: adcpatch and AMD FidelityFX $($amd.version)"
+    # FEAT-RT-006: GT7's own files, so one RyGTS folder runs both games: its stub library (runtime/gt7,
+    # libs\libSceTextToSpeech.prx), built with the pinned LLVM and the Visual Studio x64 libraries, and
+    # RyGTServer.exe (server/, online play), built with Windows' .NET Framework C# compiler.
+    if (!$env:LLVM_ROOT) { throw 'Set LLVM_ROOT to the LLVM 23.1.3 distribution (GT7 stubs; see docs/dev/CI.md)' }
+    $llvm = (Resolve-Path $env:LLVM_ROOT).Path
+    if (!$env:VCINSTALLDIR) {
+        $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+        $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+        if ($LASTEXITCODE -ne 0 -or !$vs) { throw 'Visual Studio x64 C++ tools not found' }
+        Import-Module (Join-Path $vs 'Common7/Tools/Microsoft.VisualStudio.DevShell.dll')
+        Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64'
+    }
+    $env:PATH = "$llvm/bin;$env:PATH"
+    $stubs = Join-Path (Get-Location) 'build/ci-gt7-stubs'
+    Invoke-Checked 'cmd.exe' @('/d','/c','runtime\gt7\build.cmd',$stubs)
+    if (!(Test-Path "$stubs/libSceTextToSpeech.prx")) { throw 'GT7 stub library output missing' }
+    Copy-Item "$stubs/libSceTextToSpeech.prx" $out
+    $server = Join-Path (Get-Location) 'build/ci-server'
+    New-Item -ItemType Directory -Force $server | Out-Null
+    Invoke-Checked 'cmd.exe' @('/d','/c','server\build.cmd',$server)
+    if (!(Test-Path "$server/RyGTServer.exe")) { throw 'RyGTServer output missing' }
+    Copy-Item "$server/RyGTServer.exe" $out
+    Write-Host "Tools: adcpatch, AMD FidelityFX $($amd.version), GT7's stub library and RyGTServer"
 } else {
     if (!$env:LLVM_ROOT) { throw 'Set LLVM_ROOT to the LLVM 23.1.3 distribution (see docs/dev/CI.md)' }
     $llvm = (Resolve-Path $env:LLVM_ROOT).Path
@@ -218,7 +246,7 @@ int rygt_ndebug_probe(void) { return 0; }
 }
 if ($Flavor -eq 'Diagnostics' -and $Target -ne 'Runtime') {
     if (!$env:LLVM_ROOT) { throw 'LLVM_ROOT required to verify diagnostics symbols' }
-    $name = if ($Target -eq 'Launcher') { 'RyGTS' } else { 'libSceVideoOut' }
+    $name = if ($Target -eq 'Launcher') { 'RyGTLauncher' } else { 'libSceVideoOut' }
     $extension = if ($Target -eq 'Launcher') { 'exe' } else { 'prx' }
     Invoke-Checked 'python' @('ci/diagnostics/verify-symbols.py', "$out/$name.$extension", "$out/$name.pdb", "$env:LLVM_ROOT/bin", "$out/SYMBOLS.json")
 }

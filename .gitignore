@@ -1,6 +1,8 @@
 # Build outputs
 build/
 build-*/
+# GT7 packaging sources (FEAT-GTS-291), not build output
+!/build-support/
 out/
 *.o
 *.obj

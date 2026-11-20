@@ -3,8 +3,9 @@
 // (the newest GitHub release, pre-releases included) and Nightly (the newest successful CI build,
 // downloaded through nightly.link because GitHub's own artifact download needs a signed-in
 // account). It checks the package and installs its program files over this folder, keeping a
-// backup to roll back to. User data is never written. The same file is in RyGTS and ryGT7; only the
-// settings block below differs.
+// backup to roll back to. User data is never written. FEAT-GTS-291: the one updater for both games: it
+// updates the selected game's folder (GT Sport's RyGTS folder or GT7's ryGT7 folder) from the RyGTS
+// releases, the same way for either (ryGT7's GitLab updater, Gt7Updater.cs, is gone).
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -73,14 +74,24 @@ namespace RyGT
 
     static class Updater
     {
-        // ---- This launcher (the rest of the file is the same in RyGTS and ryGT7).
+        // ---- Where the releases are.
         const string Repository = "RyGT-Team/RyGTS", Workflow = "ci-package-release.yml", Branch = "development";
         const string ArtifactPrefix = "ci-", NightlyPrefix = "RyGTS-ci-";
         // FIX-GTS-286: the release tags ("gt-sport-2026-11-15") and package zips ("GTSport-Ryty-shadGT-2026-11-15.zip")
         // as they are published.
         static readonly string[] TagPrefixes = { "gt-sport-", "gts-" }, PackagePrefixes = { "GTSport-", "RyGTS-" };
-        const string Product = "RyGTS", LauncherExe = "RyGTS.exe", GameProcess = "GTSport";
-        static readonly string[] ProtectedFiles = { "RyGT.ini", "GTSport.exe", "GTSport.exe.converted", "setup-out.txt" };
+        const string Product = "RyGTS";
+        // FEAT-GTS-291: the launcher started after an update (RyGTS.exe and ryGT7's RyGT7.exe before it).
+        public const string LauncherExe = "RyGTLauncher.exe";
+        // Either game, in whichever folder is updated: its process, its settings and its converted game.
+        static readonly string[] GameProcesses = { "GTSport", "GT7" };
+        // FEAT-GTS-291: each game's settings are <serial>.RyGT.ini now; the old names stay protected for
+        // folders not moved yet.
+        static readonly string[] ProtectedFiles = { "CUSA03220.RyGT.ini", "CUSA24769.RyGT.ini", "RyGT.ini", "RyGT7.ini", "RyGT-Launcher.ini", "GTSport.exe", "GTSport.exe.converted",
+                                                    "GT7.exe", "GT7.exe.converted", "GT7.registry.json", "setup-out.txt",
+                                                    // FEAT-RT-006: RyGTS packages carry GT7's server; its shadNet settings hold
+                                                    // the keys the Online page made for this player (EnsureShadNetKeys).
+                                                    "server\\shadnet\\shadnet.cfg" };
         // ----
 
         public const string Stable = "stable", Prerelease = "prerelease", Nightly = "nightly";
@@ -118,6 +129,20 @@ namespace RyGT
                 }
                 if (identity.StartsWith("commit:")) return "ci-" + identity.Substring(7, 8);
                 var match = Regex.Match(identity, "^" + Regex.Escape(Product) + @"-(.+?)(-prerelease)?$");
+                return match.Success ? match.Groups[1].Value : null;
+            }
+            catch { return null; }
+        }
+
+        /// The folder's release as shown to the player: the installed version, else the version in another
+        /// package's manifest.json name (a ryGT7 release from GitLab, "RyGT7-2026-10-30"). Null without one.
+        public static string ReleaseVersion(string root)
+        {
+            string installed = InstalledVersion(root);
+            if (installed != null) return installed;
+            try
+            {
+                var match = Regex.Match(BuildIdentity(root) ?? "", @"^[A-Za-z0-9]+-(.+?)(-prerelease)?$");
                 return match.Success ? match.Groups[1].Value : null;
             }
             catch { return null; }
@@ -287,7 +312,7 @@ namespace RyGT
                     string when = (run["created_at"] as string ?? "").Replace('T', ' ').TrimEnd('Z');
                     return new ReleaseInfo
                     {
-                        Artifact = true, Version = "ci-" + sha.Substring(0, 8), Tag = sha, Commit = sha, Name = Product + " nightly " + sha.Substring(0, 8),
+                        Artifact = true, Version = "ci-" + sha.Substring(0, 8), Tag = sha, Commit = sha, Name = "RyGT nightly " + sha.Substring(0, 8),
                         Notes = "Built " + (when.Length >= 16 ? when.Substring(0, 16) + " UTC" : when) + " from " + Branch + ".",
                         ZipName = NightlyPrefix + sha.Substring(0, 8) + ".zip",
                         ZipUrl = "https://nightly.link/" + Repository + "/actions/runs/" + id + "/" + name + ".zip"
@@ -317,6 +342,17 @@ namespace RyGT
             if (path.Contains("..") || Path.IsPathRooted(path)) return true;
             foreach (var folder in ProtectedFolders)
                 if (path.StartsWith(folder + "\\", StringComparison.OrdinalIgnoreCase)) return true;
+            // GAME-005: the old save folders the runtime set aside (_sd.moved-<date>, download0.moved-<date>).
+            int slash = path.IndexOf('\\');
+            if (slash > 0 && path.Substring(0, slash).IndexOf(".moved-", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+            // FEAT-GTS-291: app0 on its way into app0\<serial> (app0.moving-<serial>-<time>), and the app0 folders
+            // Set up kept (app0.previous-<time>, app0.<serial>.previous-<time>).
+            if (slash > 0 && path.StartsWith("app0.", StringComparison.OrdinalIgnoreCase)) return true;
+            // FEAT-GTS-291: convert, temp0 and data on their way into <name>\<serial> (<name>.moving-<serial>-<time>),
+            // and the old settings files kept beside the new one (RyGT7.ini.moved-<date>, a .RyGT.ini.partial).
+            if (slash > 0 && path.Substring(0, slash).IndexOf(".moving-", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+            if (slash < 0 && (path.IndexOf(".ini.moved-", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                              path.EndsWith(".RyGT.ini.partial", StringComparison.OrdinalIgnoreCase))) return true;
             return ProtectedFiles.Any(f => string.Equals(f, path, StringComparison.OrdinalIgnoreCase));
         }
 
@@ -333,7 +369,7 @@ namespace RyGT
 
         static void CheckGameClosed(string root)
         {
-            foreach (var process in Process.GetProcessesByName(GameProcess))
+            foreach (var process in GameProcesses.SelectMany(name => Process.GetProcessesByName(name)))
             {
                 try
                 {
@@ -389,9 +425,10 @@ namespace RyGT
             return files;
         }
 
-        /// Downloads the build, checks it and installs its program files over root. progress gets
-        /// a line of text and a fraction (or -1). The replaced files go to update\backup-<old version>.
-        public static void Install(string root, ReleaseInfo release, Action<string, double> progress)
+        /// Downloads the build, checks it and installs its program files over root, the folder of the
+        /// game with the title ID titleId. progress gets a line of text and a fraction (or -1). The
+        /// replaced files go to update\backup-<old version>.
+        public static void Install(string root, string titleId, ReleaseInfo release, Action<string, double> progress)
         {
             if (!release.Artifact && string.IsNullOrEmpty(release.Sha256))
                 throw new InvalidDataException("The release gives no SHA-256 for its package, so it can't be checked.");
@@ -435,8 +472,15 @@ namespace RyGT
                                       .OrderBy(p => p.Length).FirstOrDefault();
             if (listing == null) throw new InvalidDataException("The package lists no files.");
             string packageRoot = Path.GetDirectoryName(listing);
+            var listed = PackageFiles(packageRoot);
+            // FEAT-GTS-291: only a package made for the folder's game, which ships that game's files
+            // (GT Sport's user\custom_configs\CUSA03220.json, GT7's patches\CUSA24769.xml): another
+            // game's runtime over it would break it.
+            if (!PackageIsFor(listed.Select(f => f.Key), titleId))
+                throw new InvalidDataException("This package has no files for " + titleId + ", so it can't update this folder. " +
+                                               "Nothing was changed.");
             var files = new List<string>();
-            foreach (var file in PackageFiles(packageRoot))
+            foreach (var file in listed)
             {
                 string relative = file.Key.Replace('/', '\\');
                 if (IsProtected(relative)) continue;
@@ -487,6 +531,13 @@ namespace RyGT
             RecordInstalled(root, release.Version);
             CleanUp(root);
             progress("Updated to " + Display(release.Version) + ".", 1);
+        }
+
+        /// Whether a package's file list has a file named after the title ID (CUSA03220.json, CUSA24769.xml).
+        public static bool PackageIsFor(IEnumerable<string> files, string titleId)
+        {
+            return !string.IsNullOrEmpty(titleId) &&
+                   files.Any(f => string.Equals(Path.GetFileNameWithoutExtension(f.Replace('/', '\\')), titleId, StringComparison.OrdinalIgnoreCase));
         }
 
         /// What was installed, for packages whose files don't name its version (a nightly repackaged as
@@ -556,10 +607,18 @@ namespace RyGT
             RecordInstalled(root, last.Item2);
         }
 
-        /// Starts the (new) launcher and closes this one.
+        /// Starts the (new) launcher and closes this one: RyGTLauncher.exe beside this launcher (the new
+        /// one when this folder was the one updated), else this launcher again. After a roll back to a
+        /// release from before RyGTLauncher.exe, the older launcher OldLaunchers renamed is put back and
+        /// started instead.
         public static void Restart(string root)
         {
-            Process.Start(new ProcessStartInfo(Path.Combine(root, LauncherExe)) { WorkingDirectory = root, UseShellExecute = false });
+            string self = System.Windows.Forms.Application.ExecutablePath;
+            string folder = Path.GetDirectoryName(self);
+            string next = Path.Combine(folder, LauncherExe);
+            if (!File.Exists(next)) next = File.Exists(self) ? self : OldLaunchers.PutBack(folder);
+            if (next != null)
+                Process.Start(new ProcessStartInfo(next) { WorkingDirectory = folder, UseShellExecute = false });
             System.Windows.Forms.Application.Exit();
         }
     }

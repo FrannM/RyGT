@@ -1,5 +1,5 @@
-# FEAT-GTS-261: placeholder libraries for PS4 libraries GT Sport links against but RyGTS does not
-# implement. The converted GTSport.exe loads libs/<library>.prx for every one of them at start, so each
+# FEAT-GTS-261: placeholder libraries for PS4 libraries GT Sport and GT7 link against but RyGTS does not
+# implement. The converted game executable loads libs/<library>.prx for every one of them at start, so each
 # must exist. They are built from the export lists here (see README.md) straight into the patched
 # library folder: their exports are already NIDs, so they need no NID patching.
 if(NOT WIN32)

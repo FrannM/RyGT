@@ -441,7 +441,7 @@ namespace RyGT
             var parts = (current ?? "").Split(',');
             for (int i = 0; i < Players; ++i) chosen[i] = i < parts.Length ? parts[i].Trim() : "";
 
-            Text = "RyGTS - Controller ports";
+            Text = "RyGT Launcher - Controller ports";
             Font = new Font("Segoe UI", 9f);
             StartPosition = FormStartPosition.CenterParent;
             ClientSize = new Size(900, 540);
@@ -638,7 +638,7 @@ namespace RyGT
             var device = assigned[shownPlayer];
             Joysticks.JoyInfoEx info;
             preview.Kind = device != null ? ControllerPreview.KindOf(device.Vendor, device.Product) : PadKind.DualShock4;
-            preview.Connected = device != null && Joysticks.Read(device.Id, out info) && Apply(device, info);
+            preview.Connected = device != null && Joysticks.Read(device.Id, out info) && Apply(preview, device, info);
             if (!preview.Connected) Clear();
             preview.Caption = "Player " + (shownPlayer + 1) + ": " + (device != null ? DeviceLabel(device) : "no controller");
             preview.Invalidate();
@@ -654,7 +654,8 @@ namespace RyGT
 
         static float Axis(uint value) { return (value - 32767.5f) / 32767.5f; }
 
-        bool Apply(Joysticks.Device device, Joysticks.JoyInfoEx info)
+        /// Puts a controller's state (from the joystick API) on a preview (public for GT7's Controls page, FEAT-GTS-290).
+        public static bool Apply(ControllerPreview preview, Joysticks.Device device, Joysticks.JoyInfoEx info)
         {
             Func<int, bool> b = n => (info.Buttons & (1u << n)) != 0;
             uint pov = info.Pov;

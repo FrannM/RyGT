@@ -101,9 +101,9 @@ int main() {
     Check(!single.Layered() && single.Resolve("gt.idx") == top / "gt.idx" && !single.List(""),
           "without game folders /app0 is RyGTS\\app0 alone, as before");
 
-    // The folders come from RyGT.ini, as the launcher writes it (UTF-8).
+    // The folders come from the game's <serial>.RyGT.ini, as the launcher writes it (UTF-8).
     {
-        std::ofstream ini(rygts / "RyGT.ini", std::ios::binary);
+        std::ofstream ini(rygts / "CUSA03220.RyGT.ini", std::ios::binary);
         const auto updateText = update.u8string();
         const auto baseText = base.u8string();
         ini << "game=" << std::string(baseText.begin(), baseText.end()) << "\r\n"
@@ -115,22 +115,58 @@ int main() {
 #else
     unsetenv("RYGT_APP0_LAYERS");
 #endif
-    const auto fromIni = Libc::ConfiguredApp0Layers(rygts);
+    const auto fromIni = Libc::ConfiguredApp0Layers(rygts, "CUSA03220");
     Check(fromIni.size() == 2 && fromIni[0] == fs::weakly_canonical(update) && fromIni[1] == fs::weakly_canonical(base),
-          "RyGT.ini gives the update, then the base game");
+          "CUSA03220.RyGT.ini gives the update, then the base game");
+    // FEAT-GTS-291: each game reads its own file; GT Sport's is not GT7's.
+    Check(Libc::ConfiguredApp0Layers(rygts, "CUSA24769").empty(), "GT7 does not read CUSA03220.RyGT.ini");
     {
+        // The old shared RyGT.ini, not renamed yet: read when it can only be this game's.
+        const auto updateText = update.u8string();
         std::ofstream ini(rygts / "RyGT.ini", std::ios::binary);
+        ini << "update=" << std::string(updateText.begin(), updateText.end()) << "\n";
+    }
+    Check(Libc::ConfiguredApp0Layers(rygts, "CUSA24769").size() == 1, "GT7 reads the old RyGT.ini while CUSA24769.RyGT.ini is missing");
+    Check(Libc::ConfiguredApp0Layers(rygts, "CUSA03220").size() == 2, "GT Sport's own file wins over the old one");
+    Touch(rygts / "GTSport.exe");
+    Check(Libc::ConfiguredApp0Layers(rygts, "CUSA24769").empty(), "not the old RyGT.ini beside the other game's exe");
+    fs::remove(rygts / "GTSport.exe");
+    fs::remove(rygts / "CUSA03220.RyGT.ini");
+    Check(Libc::ConfiguredApp0Layers(rygts, "CUSA03220").size() == 1, "GT Sport reads the old RyGT.ini too");
+    Touch(rygts / "RyGT7.ini");
+    Check(Libc::ConfiguredApp0Layers(rygts, "CUSA03220").empty(), "not GT7's old RyGT.ini (beside RyGT7.ini) for GT Sport");
+    fs::remove(rygts / "RyGT7.ini");
+    fs::remove(rygts / "RyGT.ini");
+    {
+        std::ofstream ini(rygts / "CUSA03220.RyGT.ini", std::ios::binary);
         ini << "game=" << (root / "gone").string() << "\nupdate=\n";
     }
-    Check(Libc::ConfiguredApp0Layers(rygts).empty(), "missing or empty folders are left out");
+    Check(Libc::ConfiguredApp0Layers(rygts, "CUSA03220").empty(), "missing or empty folders are left out");
 #ifdef _WIN32
     _wputenv_s(L"RYGT_APP0_LAYERS", (base.wstring() + L";" + top.wstring()).c_str());
 #else
     setenv("RYGT_APP0_LAYERS", (base.string() + ";" + top.string()).c_str(), 1);
 #endif
-    const auto fromEnvironment = Libc::ConfiguredApp0Layers(rygts);
+    const auto fromEnvironment = Libc::ConfiguredApp0Layers(rygts, "CUSA03220");
     Check(fromEnvironment.size() == 1 && fromEnvironment[0] == fs::weakly_canonical(base),
-          "RYGT_APP0_LAYERS overrides RyGT.ini, and RyGTS\\app0 itself is not a lower layer");
+          "RYGT_APP0_LAYERS overrides the settings file, and RyGTS\\app0 itself is not a lower layer");
+
+    // FEAT-GTS-291: each game's own layer is app0\<serial> once Set up made it, else app0 as before.
+    Check(Libc::App0Top(rygts, "CUSA03220") == top, "a folder set up before keeps app0 as the top layer");
+    fs::create_directories(top / "CUSA24769" / "sce_module");
+    Check(Libc::App0Top(rygts, "CUSA24769") == top / "CUSA24769", "GT7's top layer is app0\\CUSA24769");
+    Check(Libc::App0Top(rygts, "CUSA03220") == top, "GT Sport's app0\\CUSA03220 is not GT7's");
+    fs::create_directories(top / "CUSA03220");
+    Check(Libc::App0Top(rygts, "CUSA03220") == top / "CUSA03220", "GT Sport's top layer is app0\\CUSA03220");
+    Check(Libc::App0Top(rygts, "") == top, "without a serial app0 itself");
+#ifdef _WIN32
+    _wputenv_s(L"RYGT_APP0_LAYERS", (base.wstring() + L";" + (top / "CUSA03220").wstring()).c_str());
+#else
+    setenv("RYGT_APP0_LAYERS", (base.string() + ";" + (top / "CUSA03220").string()).c_str(), 1);
+#endif
+    const auto withSerial = Libc::ConfiguredApp0Layers(rygts, "CUSA03220");
+    Check(withSerial.size() == 1 && withSerial[0] == fs::weakly_canonical(base),
+          "a game's app0\\<serial> is never a lower layer either");
 
     fs::remove_all(root);
     if (failures == 0) std::puts("app0 overlay tests passed");

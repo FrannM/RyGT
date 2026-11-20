@@ -25,8 +25,9 @@ static constexpr char SAVE_DIR[] = "_sd";
 static std::atomic<std::int32_t> g_transaction_counter{1};
 static bool g_initialized = false;
 
+// GAME-005: the guest's /_sd, which libc points at the game's own user/savedata/<serial>/_sd.
 static std::string save_root() {
-    return std::string(SAVE_DIR);
+    return ResolvePath_nid_no_patch((std::string("/") + SAVE_DIR).c_str()).string();
 }
 
 // Events the title polls with sceSaveDataGetEventResult; a backup completes at once here.

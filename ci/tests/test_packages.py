@@ -84,7 +84,7 @@ class PackageTests(unittest.TestCase):
     def fixture(self):
         pin = json.loads((ROOT / 'renderer/source.json').read_text())
         for flavor, _, suffix in pkg.VARIANTS:
-            for target, binary in (('launcher', 'RyGTS.exe'), ('renderer', 'libSceVideoOut.prx')):
+            for target, binary in (('launcher', 'RyGTLauncher.exe'), ('renderer', 'libSceVideoOut.prx')):
                 folder = Path('artifacts/' + target + suffix)
                 folder.mkdir(parents=True)
                 (folder / binary).write_bytes(pe())
@@ -121,6 +121,8 @@ class PackageTests(unittest.TestCase):
             (runtime / program).write_bytes(linked_pe(exports=(program,)))
         for dll in pkg.RUNTIME_DLLS:
             (runtime / dll).write_bytes(pe())
+        (runtime / 'libzstd.dll').write_bytes(linked_pe(exports=('ZSTD_decompress',)))  # FEAT-RT-006
+        (runtime / 'zstd-LICENSE.txt').write_text('BSD License\n')
         (runtime / 'RUNTIME-TOOLCHAIN.json').write_text(json.dumps({'packages': [], 'ffmpeg': {}}))
         (runtime / 'RYGT-COMMIT.txt').write_text(SHA)
         (runtime / 'BUILD-PROFILE.json').write_text(json.dumps(dict(schema=1, flavor='Release', commit=SHA, optimized=True, full_symbols=False)))
@@ -129,6 +131,8 @@ class PackageTests(unittest.TestCase):
         tools.mkdir(parents=True)
         for file in pkg.TOOLS_FILES:
             (tools / file).write_bytes(linked_pe(exports=(file,)) if file.endswith(('.exe', '.dll')) else file.encode())
+        for file, _ in pkg.GT7_TOOLS_FILES:  # FEAT-RT-006
+            (tools / file).write_bytes(linked_pe(exports=(file,)))
         (tools / 'RYGT-COMMIT.txt').write_text(SHA)
         self.rehash(tools)
 
@@ -152,7 +156,7 @@ class PackageTests(unittest.TestCase):
                 with zipfile.ZipFile(archive) as z:
                     names = {n.removeprefix(prefix) for n in z.namelist()}
                     pdbs = {n for n in names if n.endswith('.pdb')}
-                    self.assertEqual(pdbs, {'RyGTS.pdb', 'libs/libSceVideoOut.pdb'} if variant['channel'] == 'debug-ci' else set())
+                    self.assertEqual(pdbs, {'RyGTLauncher.pdb', 'libs/libSceVideoOut.pdb'} if variant['channel'] == 'debug-ci' else set())
                     self.assertEqual('tools/diagnostics/Start-Capture.cmd' in names, bool(pdbs))
                     config = json.loads(z.read(prefix + 'user/custom_configs/CUSA03220.json'))
                     self.assertTrue(config['GPU']['precompile_shaders'])
@@ -184,6 +188,13 @@ class PackageTests(unittest.TestCase):
                                              ('tools/adcpatch/README.txt', 'artifacts/tools/adcpatch-README.txt'),
                                              ('amd_fidelityfx_vk.dll', 'artifacts/tools/amd_fidelityfx_vk.dll'),
                                              ('launcher/background.png', str(ROOT / 'loader/launcher/background.png')),
+                                             # FEAT-RT-006: GT7's files, so one folder runs both games.
+                                             ('libs/libSceTextToSpeech.prx', 'artifacts/tools/libSceTextToSpeech.prx'),
+                                             ('server/RyGTServer.exe', 'artifacts/tools/RyGTServer.exe'),
+                                             ('server/libzstd.dll', 'artifacts/runtime/libzstd.dll'),
+                                             ('patches/CUSA24769.xml', str(ROOT / 'patches/CUSA24769.xml')),
+                                             ('server/shadnet/shadnet.exe', str(ROOT / 'server/shadnet/shadnet.exe')),
+                                             ('server/shadnet/shadnet.cfg', str(ROOT / 'server/shadnet/shadnet.cfg')),
                                              ('LINUX.txt', str(ROOT / 'docs/user/LINUX.md'))):
                         self.assertEqual(z.read(prefix + packaged), Path(source).read_bytes(), packaged)
                     config = json.loads(z.read(prefix + 'user/custom_configs/CUSA03220.json'))

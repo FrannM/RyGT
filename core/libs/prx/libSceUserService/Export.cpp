@@ -14,6 +14,7 @@
 #endif
 #include <windows.h>
 #endif
+#include "GameSerial.hpp"
 
 namespace {
 
@@ -39,16 +40,16 @@ std::size_t Utf8PrefixLength(const char* text, std::size_t max_bytes) {
  return offset;
 }
 
-// The GT Sport config next to the game's exe (user/custom_configs/CUSA03220.json) as text.
+// The game's config next to its exe (user/custom_configs/<serial>.json, GameSerial.hpp) as text.
 std::string ReadGameConfig() {
 #ifdef _WIN32
  char exe[MAX_PATH] = {};
  const DWORD length = GetModuleFileNameA(nullptr, exe, MAX_PATH);
  if (length == 0 || length >= MAX_PATH) return {};
  std::string path(exe, length);
- path = path.substr(0, path.find_last_of("\\/") + 1) + "user/custom_configs/CUSA03220.json";
+ path = GameSerial::GameConfigPath(path.substr(0, path.find_last_of("\\/") + 1));
 #else
- const std::string path = "user/custom_configs/CUSA03220.json";
+ const std::string path = GameSerial::GameConfigPath(std::string());
 #endif
  std::FILE* file = std::fopen(path.c_str(), "rb");
  if (file == nullptr) return {};

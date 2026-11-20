@@ -1,6 +1,6 @@
-// FEAT-GTS-433: custom environment variables for GTSport.exe, set in the launcher instead of a shell
+﻿// FEAT-GTS-433: custom environment variables for GTSport.exe (FEAT-GTS-290: or GT7.exe), set in the launcher instead of a shell
 // (SHADGT_SO_CACHE, SHADGT_SO_HASH_MASK and the other renderer and runtime switches).
-// Saved in RyGT.ini as "env=<1|0>|NAME=VALUE" lines; enabled rows are applied last when the game starts.
+// Saved in the game's <TitleId>.RyGT.ini (FEAT-GTS-291) as "env=<1|0>|NAME=VALUE" lines; enabled rows are applied last when the game starts.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -17,6 +17,9 @@ namespace RyGT
 
     static class CustomEnvironment
     {
+        /// FEAT-GTS-290: the selected game's exe (GTSport.exe or GT7.exe), for the page's text.
+        public static string ExeName = "GTSport.exe";
+
         /// Letters, digits and underscores only (so never "=" or a space).
         public static bool IsValidName(string name)
         {
@@ -26,7 +29,7 @@ namespace RyGT
             return true;
         }
 
-        /// The part after "env=" in RyGT.ini, or null if it is not a valid entry.
+        /// The part after "env=" in <TitleId>.RyGT.ini, or null if it is not a valid entry.
         public static EnvVar Parse(string text)
         {
             if (text == null || text.Length < 3 || text[1] != '|') return null;
@@ -113,7 +116,7 @@ namespace RyGT
             panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             panel.Controls.Add(new Label
             {
-                Text = "Set for GTSport.exe when it starts, over the launcher's own. Names: letters, digits and _. " +
+                Text = "Set for " + ExeName + " when it starts, over the launcher's own. Names: letters, digits and _. " +
                        "An empty value removes the variable. Restart the game to apply.",
                 AutoSize = true, MaximumSize = new Size(380, 0), ForeColor = Color.Silver, BackColor = Color.Transparent, Margin = new Padding(0, 0, 0, 6)
             });

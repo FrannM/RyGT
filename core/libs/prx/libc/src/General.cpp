@@ -63,11 +63,15 @@ struct WorkingDirectory {
 };
 WorkingDirectory& Directories() { static WorkingDirectory state; return state; }
 
-// FEAT-GTS-259: /app0 searched through RyGTS\app0, the update and the base game (AppOverlay.hpp).
+// FEAT-GTS-259: /app0 searched through the runtime's app0 folder, the update and the base game (AppOverlay.hpp).
+// FEAT-GTS-291: the runtime's own layer is app0\<serial> once Set up made it (App0Top).
 Libc::AppOverlay& App0() {
     static Libc::AppOverlay overlay = [] {
         const auto& root = Directories().root;
-        return Libc::AppOverlay(root / "app0", Libc::ConfiguredApp0Layers(root));
+        const auto top = Libc::App0Top(root, Libc::RunningGameSerial());
+        // The launcher looks for RYGT_APP0_PER_GAME/1 in libc.prx before it sets up app0\<serial>.
+        std::fprintf(stderr, "[app0] RYGT_APP0_PER_GAME/1: /app0 is %s\n", top.lexically_relative(root).generic_string().c_str());
+        return Libc::AppOverlay(top, Libc::ConfiguredApp0Layers(root, Libc::RunningGameSerial()));
     }();
     return overlay;
 }

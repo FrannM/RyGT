@@ -1,0 +1,237 @@
+{
+  "repository": "https://repo.msys2.org/mingw/ucrt64/",
+  "cutoff": "2026-11-08",
+  "packages": [
+    {
+      "file": "mingw-w64-ucrt-x86_64-gcc-16.2.0-6-any.pkg.tar.zst",
+      "published": "2026-10-13 12:29",
+      "sha256": "0290e91f5a9a8a3699bcea6221a899403bb9bd5d6f7dbd98c883d74e2ef36338"
+    },
+    {
+      "file": "mingw-w64-ucrt-x86_64-libgcc-16.2.0-6-any.pkg.tar.zst",
+      "published": "2026-10-13 12:29",
+      "sha256": "80b2497f019977dd9528b1abc8621b1328a0115ab1f724047ccbb56bf323f11d"
+    },
+    {
+      "file": "mingw-w64-ucrt-x86_64-libstdc++-16.2.0-6-any.pkg.tar.zst",
+      "published": "2026-10-13 12:30",
+      "sha256": "33c5e58a85a538cf843a8672991cce591f0231d66da3b66a57629712d64be17f"
+    },
+    {
+      "file": "mingw-w64-ucrt-x86_64-gcc-libs-16.2.0-6-any.pkg.tar.zst",
+      "published": "2026-10-13 12:29",
+      "sha256": "20b4df1cc16e5c5d38d6510b4fb586a96922b7817d455c0d30c3c1257a88cc9c"
+    },
+    {
+      "file": "mingw-w64-ucrt-x86_64-libgomp-16.2.0-6-any.pkg.tar.zst",
+      "published": "2026-10-13 12:29",
+      "sha256": "809b95086d8d3ba145e041bb36d5756b4407d1d97c0524ef731d3b94548faa69"
+    },
+    {
+      "file": "mingw-w64-ucrt-x86_64-libatomic-16.2.0-6-any.pkg.tar.zst",
+      "published": "2026-10-13 12:29",
+      "sha256": "792f6e8b08a83b17be44c9b881a753f1bb0ecd82480f16bbd49ec4786a659cf9"
+    },
+    {
+      "file": "mingw-w64-ucrt-x86_64-libquadmath-16.2.0-6-any.pkg.tar.zst",
+      "published": "2026-10-13 12:30",
+      "sha256": "7b553c0b6dd9cf2f676c0c6812aa359495940dbdd7347f47be1dbd75d29cd611"
+    },
+    {
+      "file": "mingw-w64-ucrt-x86_64-binutils-2.47-4-any.pkg.tar.zst",
+      "published": "2026-10-07 16:19",
+      "sha256": "c18a40b871bfddb5da030f015003479ca85625afde1cb89f7313945e6151397d"
+    },
+    {
+      "file": "mingw-w64-ucrt-x86_64-crt-14.0.0.r598.ge3d18511f-1-any.pkg.tar.zst",
+      "published": "2026-11-03 10:18",
+      "sha256": "e863d0d1c5cef1269738f23dcc155b9b0d161d198b93d9d5aa481cb3a2f2cf53"
+    },
+    {
+      "file": "mingw-w64-ucrt-x86_64-headers-14.0.0.r598.ge3d18511f-1-any.pkg.tar.zst",
+      "published": "2026-11-03 10:11",
+      "sha256": "b3cec87298555a7c6694bd4d421d586d08a1cb47bc5bc76e79602cbf4421d3c9"
+    },
+    {
+      "file": "mingw-w64-ucrt-x86_64-winpthreads-14.0.0.r598.ge3d18511f-1-any.pkg.tar.zst",
+      "published": "2026-11-03 10:21",
+      "sha256": "282485a1e453e972b86639cedcf43686e0000dfe5eff0421e47a4405ecdd85ce"
+    },
+    {
+      "file": "mingw-w64-ucrt-x86_64-libwinpthread-14.0.0.r598.ge3d18511f-1-any.pkg.tar.zst",
+      "published": "2026-11-03 10:21",
+      "sha256": "c35d6be83d141c8cfbb61f1637dd4b53aac8f5562d766aa26d0741c40bad4e4d"
+    },
+    {
+      "file": "mingw-w64-ucrt-x86_64-gmp-6.3.0-2-any.pkg.tar.zst",
+      "published": "2023-09-15 07:58",
+      "sha256": "e82a75968a556484a50084578238a84eb60fb93e34986fd6695c537975bd39ea"
+    },
+    {
+      "file": "mingw-w64-ucrt-x86_64-mpfr-4.2.2-3-any.pkg.tar.zst",
+      "published": "2026-05-09 12:11",
+      "sha256": "6b70a275d2ec75c70aa50a236c218e6b7ee9a5ab4c6d52cb0b580267b7d200fe"
+    },
+    {
+      "file": "mingw-w64-ucrt-x86_64-mpc-1.4.1-1-any.pkg.tar.zst",
+      "published": "2026-04-18 00:45",
+      "sha256": "f06556e811c711ce91609484e31d358e4f495811ba29813bf2284a3b236d82ce"
+    },
+    {
+      "file": "mingw-w64-ucrt-x86_64-isl-0.28-1-any.pkg.tar.zst",
+      "published": "2026-07-12 22:00",
+      "sha256": "8594e01a253d5a72646c586cf5a1626c1b1c2be7c30060fe67abd9bebe3fe223"
+    },
+    {
+      "file": "mingw-w64-ucrt-x86_64-zlib-1.4-2-any.pkg.tar.zst",
+      "published": "2026-11-07 13:54",
+      "sha256": "172541cf5e2391a402f092104988699b0163129d22be1d6b4b201bfb84af6fcf"
+    },
+    {
+      "file": "mingw-w64-ucrt-x86_64-zstd-1.5.7-2-any.pkg.tar.zst",
+      "published": "2026-05-01 19:17",
+      "sha256": "dbdb8427280046a2b41697780aa4c52983b708082b0da4755951dc3bea96ca89"
+    },
+    {
+      "file": "mingw-w64-ucrt-x86_64-libiconv-1.19.1-1-any.pkg.tar.zst",
+      "published": "2026-11-05 03:46",
+      "sha256": "8a45dc317a285a036bddd79e01505d67b79e44ff49fc3f6e7177a5ea98d098cf"
+    },
+    {
+      "file": "mingw-w64-ucrt-x86_64-gettext-runtime-1.0-1-any.pkg.tar.zst",
+      "published": "2026-01-31 13:08",
+      "sha256": "ba693dda4ac375af76ce481ff3a6e7481286546cc7dc6d56c7021dae34084157"
+    },
+    {
+      "file": "mingw-w64-ucrt-x86_64-windows-default-manifest-20260815-1-any.pkg.tar.zst",
+      "published": "2026-08-16 07:55",
+      "sha256": "b39039f754a600cc0dec49df7d675a59a3cb2b63691d91b4ae60735ee7075eca"
+    },
+    {
+      "file": "mingw-w64-ucrt-x86_64-tzdata-2026f-1-any.pkg.tar.zst",
+      "published": "2026-10-28 13:34",
+      "sha256": "dd8af2f770b3241d8c299343c12cd4d7e3b94c47195608158d28788a01575323"
+    }
+  ],
+  "ffmpeg": {
+    "commit": "9ac4cfd195f1",
+    "file": "9ac4cfd195f1-ffmpeg-mingw-x64.zip",
+    "url": "https://github.com/KytyPS5/ext-ffmpeg-core/releases/download/9ac4cfd195f1/ffmpeg-mingw-x64.zip",
+    "sha256": "e4be9938b321da5f53e248d8ae947c984390e09d0f59fb6855644a972126e26b",
+    "note": "3rdparty/ffmpeg-core at this commit downloads the same file; pinned here so it cannot change unnoticed."
+  },
+  "fidelityfx": {
+    "version": "FidelityFX SDK v1.1.4",
+    "dll_url": "https://raw.githubusercontent.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/v1.1.4/PrebuiltSignedDLL/amd_fidelityfx_vk.dll",
+    "dll_sha256": "a1624cc4238fef046f30c4d80ce3f47be63fc5f5373f49e3ee9edb9960f54c78",
+    "license_url": "https://raw.githubusercontent.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/v1.1.4/LICENSE.txt",
+    "license_sha256": "82cf74fc23885107c7f69249ac3f1dac55898ff68320eb2c753984cae6b2d78a"
+  },
+  "dlss_sdk": {
+    "version": "NVIDIA DLSS SDK v310.9.16",
+    "base_url": "https://raw.githubusercontent.com/NVIDIA/DLSS/9981c6350dc58c0ce21f024fd65e31e851c31689",
+    "note": "FEAT-GTS-269: headers and import library for building dlss/ryGT_dlss.dll; only LICENSE.txt is packaged (licenses/NVIDIA-DLSS-SDK)",
+    "files": [
+      {
+        "path": "include/nvsdk_ngx.h",
+        "sha256": "dc38e7467cf415379c9d12ae1b6e4a494c453ed92720fb53e92aecb523e7b848"
+      },
+      {
+        "path": "include/nvsdk_ngx_defs.h",
+        "sha256": "ea23f33497cd274860d1c25a97644fce807dcb0037c594547203343103fad03e"
+      },
+      {
+        "path": "include/nvsdk_ngx_defs_dlssd.h",
+        "sha256": "2e97fe1595b1334f71b51724f2cb67496e8c296a7a2eec5606da53055882e716"
+      },
+      {
+        "path": "include/nvsdk_ngx_defs_dlssg.h",
+        "sha256": "c29765ab9e0125f9d724ae9811cc2abe03738d17486ec8eee80d78a1504549e1"
+      },
+      {
+        "path": "include/nvsdk_ngx_defs_vk.h",
+        "sha256": "0a24d0861ace7d6b9362a67b7f08bea1b33ea123c5ce730b19133de8a891d031"
+      },
+      {
+        "path": "include/nvsdk_ngx_helpers.h",
+        "sha256": "5bcbadfe7478b802cf6d3aca4dc5ddd7d0889b99726e69c63f9e9bd555f44471"
+      },
+      {
+        "path": "include/nvsdk_ngx_helpers_cuda.h",
+        "sha256": "f2851a76107bdf4fbcb7b261f3c35573c312d8ecb4bc18fb02d9e2cec7705042"
+      },
+      {
+        "path": "include/nvsdk_ngx_helpers_d3d.h",
+        "sha256": "ec75224f36ed6580baaf250fa83620405ad81a1d98c2c436654a0c9cf6a6b8ba"
+      },
+      {
+        "path": "include/nvsdk_ngx_helpers_dlssd.h",
+        "sha256": "a25fdda925b479dfe869593aeba311ef08793da54e0391f2fe2fe756cbef5532"
+      },
+      {
+        "path": "include/nvsdk_ngx_helpers_dlssd_cuda.h",
+        "sha256": "7e35cde214d905346a487b9a28c05d35e1c55b480e237fe3de69580a7e332730"
+      },
+      {
+        "path": "include/nvsdk_ngx_helpers_dlssd_d3d.h",
+        "sha256": "6df9d02c6f47feee3afc8d12340a9f554a7ddce4ddacb1b6a13a42b26c2c6293"
+      },
+      {
+        "path": "include/nvsdk_ngx_helpers_dlssd_vk.h",
+        "sha256": "11df8fbda532a97fe867c8ef2b40058b49b7898183710f3468e55b1eedb8f40b"
+      },
+      {
+        "path": "include/nvsdk_ngx_helpers_dlssg.h",
+        "sha256": "6881d21419c40c78ec948b326902ece09fc112b0223144d51c4905f3fced7a1f"
+      },
+      {
+        "path": "include/nvsdk_ngx_helpers_dlssg_d3d.h",
+        "sha256": "6335ebcb95de39a361e87fe0257d6ce0723e5d8deaa15db3b35afacf2b3f4220"
+      },
+      {
+        "path": "include/nvsdk_ngx_helpers_dlssg_vk.h",
+        "sha256": "b371d90b9f4372b9a415e68a0afbdc2f31b7b552e219a9637d848749bc965316"
+      },
+      {
+        "path": "include/nvsdk_ngx_helpers_vk.h",
+        "sha256": "c192bff72138f12f770db48e12c1d8f712dfc81ea0e8e055ebb27d8dd1b31623"
+      },
+      {
+        "path": "include/nvsdk_ngx_loader.h",
+        "sha256": "abdf5f66a692620538357d29fdf78e3e2a677ee8140b7a638962ecb766585e75"
+      },
+      {
+        "path": "include/nvsdk_ngx_params.h",
+        "sha256": "943bc8cc5cdae03b6303016fbad3183636f2335ae27a2d18776798c3b4efabbc"
+      },
+      {
+        "path": "include/nvsdk_ngx_params_dlssd.h",
+        "sha256": "d41e3ba8f1d72583b55273092c99bf426dc4a0d46de827229e25d5b1325a370e"
+      },
+      {
+        "path": "include/nvsdk_ngx_params_dlssg.h",
+        "sha256": "c24fa5aa68ffa2808c828b75cfa32843f1606f80a145f84055ac450d7e6c74ad"
+      },
+      {
+        "path": "include/nvsdk_ngx_standalone_common.h",
+        "sha256": "38413c3338b0aea0202c07da95d426bfee7080a42913823fa2d9dd585b087b53"
+      },
+      {
+        "path": "include/nvsdk_ngx_standalone_cuda.h",
+        "sha256": "b23436ed5040051ac8e81554c9af080f2463c941435bbc3b82222e5431a09499"
+      },
+      {
+        "path": "include/nvsdk_ngx_vk.h",
+        "sha256": "2d364ce7132881eb669e9498fd570d74cba563b1fbebc82c235f8e1ad2dd8b6d"
+      },
+      {
+        "path": "lib/Windows_x86_64/x64/nvsdk_ngx_d.lib",
+        "sha256": "bc43df9ec032004fde681d3e3afd01cde239e03a0125b822e88674c84287f99c"
+      },
+      {
+        "path": "LICENSE.txt",
+        "sha256": "d4216e39ebef5f9b50a6712ebb37beeb5379862a67733a9999c651f21592aaf0"
+      }
+    ]
+  }
+}

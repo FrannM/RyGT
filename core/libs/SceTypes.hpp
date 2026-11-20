@@ -1133,7 +1133,10 @@ struct NpTitleId { char data[13]; char pad[3]; };
 struct NpTitleSecret { std::uint8_t data[128]; };
 struct NpContentRestriction { std::uint8_t opaque[128]; };
 struct NpOnlineId { char data[17]; char pad[3]; };
-struct NpId { NpOnlineId online_id; std::uint8_t opaque[4]; };
+struct NpId { NpOnlineId online_id; std::uint8_t opt[8]; std::uint8_t reserved[8]; };
+static_assert(sizeof(NpId) == 36);
+struct NpCountryCode { char data[2]; char term; char padding[1]; };
+struct NpCheckPremiumResultData { bool authorized; std::uint8_t padding[7]; std::uint8_t reserved[32]; };
 struct NpCreateAsyncRequestParameter { std::uint8_t opaque[64]; };
 struct NpCheckPremiumParameter { std::uint8_t opaque[64]; };
 struct NpCheckPremiumResult { std::uint8_t opaque[64]; };
@@ -1403,6 +1406,19 @@ struct ContentExportInitParam2 {
     std::int64_t reserved0;
     std::int64_t reserved1;
 };
+
+// FEAT-GT7-161: layout read from GT7 (CUSA24769 1.00), which clears 0x243 bytes, copies at most 256
+// characters of the title to +0 and the MIME type ("image/jpeg" or "image/png") to +0x202. What the
+// bytes between are for is not known; GT7 leaves them empty.
+struct ContentExportParam {
+    char title[0x101];
+    char unknown[0x101];
+    char content_type[0x41];
+};
+
+// Gives sceContentExportFromData the caller's data: sets *data and *size to the next piece.
+// GT7 hands over its whole image in one call and returns 1.
+using ContentExportReadFunc = int (APS5_VABI*)(void** data, std::size_t* size, void* user_data);
 
 struct ContentSearchInitParam { std::size_t memory_size; };
 

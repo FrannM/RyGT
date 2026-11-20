@@ -11,7 +11,7 @@
 
 namespace Relinker {
 
-std::vector<GuestArtifact> GuestModuleBuilder::Build(const std::filesystem::path& inputPath, const std::filesystem::path& outputPath, Domain::SysVDynamicSection& dynamic, const bool windows, const bool toIntel, ISyscallScanner& syscallScanner, const bool lazyBinding, const std::string& runPath, const std::set<std::string>& excludedModules) const {
+std::vector<GuestArtifact> GuestModuleBuilder::Build(const std::filesystem::path& inputPath, const std::filesystem::path& outputPath, Domain::SysVDynamicSection& dynamic, const bool windows, const bool toIntel, ISyscallScanner& syscallScanner, const bool lazyBinding, const std::string& runPath, const std::set<std::string>& excludedModules, const std::string& app0Path) const {
     const auto root = std::filesystem::absolute(inputPath).parent_path();
     const auto singular = root / "sce_module";
     const auto plural = root / "sce_modules";
@@ -137,17 +137,22 @@ std::vector<GuestArtifact> GuestModuleBuilder::Build(const std::filesystem::path
         Io::AppendU64(dynamic.DynamicSegmentData, dynamic.DynStrData.size());
         Io::AppendString(dynamic.DynStrData, name);
     };
-    const auto relativeDirectoryStr = "app0/" + directory.filename().generic_string();
-    const auto relativeDirectoryPath = std::filesystem::path("app0") / directory.filename();
+    // FEAT-GTS-291: app0Path is "app0" or "app0/<serial>" (--app0), so each game's converted
+    // modules (and the paths its executable loads them from) have their own folder.
+    const auto relativeDirectoryStr = app0Path + "/" + directory.filename().generic_string();
+    const auto relativeDirectoryPath = std::filesystem::path(app0Path) / directory.filename();
+    std::string up;
+    for (const auto& part : relativeDirectoryPath) { (void)part; up += "../"; }
+    up.pop_back();
     for (const auto index : order) if (!windows) addNeeded("$ORIGIN/" + relativeDirectoryStr + "/" + images[index].OutputName);
     for (const auto& name : hostLibraries) addNeeded(name);
     std::string guestRunPath = runPath;
     if (!windows) {
-        if (guestRunPath == "$ORIGIN") guestRunPath = "$ORIGIN/../..";
-        else if (guestRunPath.starts_with("$ORIGIN/")) guestRunPath.insert(8, "../../");
-        else if (guestRunPath == "@executable_path") guestRunPath = "@executable_path/../..";
-        else if (guestRunPath.starts_with("@executable_path/")) guestRunPath.insert(17, "../../");
-        else if (guestRunPath.starts_with("@loader_path/")) guestRunPath.insert(13, "../../");
+        if (guestRunPath == "$ORIGIN") guestRunPath = "$ORIGIN/" + up;
+        else if (guestRunPath.starts_with("$ORIGIN/")) guestRunPath.insert(8, up + "/");
+        else if (guestRunPath == "@executable_path") guestRunPath = "@executable_path/" + up;
+        else if (guestRunPath.starts_with("@executable_path/")) guestRunPath.insert(17, up + "/");
+        else if (guestRunPath.starts_with("@loader_path/")) guestRunPath.insert(13, up + "/");
         else if (!std::filesystem::path(guestRunPath).is_absolute()) throw Domain::RelinkerException("Guest Linux/macOS run path must be absolute or begin with $ORIGIN, @executable_path, or @loader_path");
     }
     std::vector<GuestArtifact> artifacts;

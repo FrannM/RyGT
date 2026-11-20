@@ -97,7 +97,7 @@ namespace RyGT
         {
             this.saveKeyboardPlayer = saveKeyboardPlayer;
             path = Path.Combine(root, "user", "input_config", "default.ini");
-            Text = "RyGTS - Controls";
+            Text = "RyGT Launcher - Controls";
             Font = new Font("Segoe UI", 9f);
             StartPosition = FormStartPosition.CenterParent;
             ClientSize = new Size(780, 760);
@@ -290,7 +290,7 @@ namespace RyGT
             int player = keyboardPlayer.SelectedIndex + 1;
             string keyboardTarget = player > 1 ? ":" + player : "";
             var text = new StringBuilder();
-            text.AppendLine("# Made by RyGTS.exe (Controls). Lines it does not manage are kept at the end.");
+            text.AppendLine("# Made by RyGT Launcher (Controls). Lines it does not manage are kept at the end.");
             text.AppendLine();
             text.AppendLine("# Keyboard bindings" + (player > 1 ? " (player " + player + ")" : ""));
             foreach (var row in Rows)

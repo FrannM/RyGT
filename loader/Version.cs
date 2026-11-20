@@ -10,9 +10,9 @@ namespace RyGT
 {
     static class LauncherVersion
     {
-        public const string Value = "0.2.4";
+        public const string Value = "0.3.7";
 
-        /// "RyGTS launcher 0.1.1", the first line of each setup log.
-        public const string Banner = "RyGTS launcher " + Value;
+        /// "RyGT Launcher 0.3.1", the first line of each setup log.
+        public const string Banner = "RyGT Launcher " + Value;
     }
 }

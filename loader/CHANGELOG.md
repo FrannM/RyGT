@@ -1,24 +1,115 @@
-# RyGTS launcher changelog
+# RyGT Launcher changelog
 
-The launcher (RyGTS.exe) is versioned on its own with semantic versioning
+The launcher (RyGTLauncher.exe, called RyGTS.exe before 0.3.1) is versioned on its own with semantic versioning
 (MAJOR.MINOR.PATCH), separately from the game, emulator and release packages.
 The version lives in `loader/Version.cs`. To release a change, bump
 `LauncherVersion.Value` there and add a section here with the same number;
 CI fails when the two disagree.
 
-## 0.2.4 - 2026-11-16
+## 0.3.7 - 2026-11-20
+
+* FIX-RT-008: GT7 showed GT Sport's red picture in a shared folder: launcher\background.png (which the
+  RyGTS package ships) and launcher\logo.png were used for both games. They are GT Sport's now while
+  GTSport.exe is in the folder (a ryGT7-only folder keeps them for GT7); each game's own pictures go in
+  launcher\<serial>, and GT7 otherwise shows its built-in blue picture again.
+* FIX-RT-009: GT7's About page has GT Sport's notice too, with "Copyright © 2026 RyGT-Team."
+* FIX-RT-010: one name and one icon for both games. The home caption no longer ends in "RYGTS FOR WINDOWS"
+  or "RYGT7 FOR WINDOWS"; the version line, About, sidebar, folder rows, update notices, the update and
+  roll back dialogs, the Changelog title and nightlies ("RyGT nightly") say RyGT. The window keeps the
+  RyGT icon for GT7 too (GT7's own icon stays beside the player's ID). GT7's sidebar has Advanced above
+  About, as GT Sport's does.
+* FIX-RT-011: GT7's home caption and version line name its update ("UPDATE 1.71", "GT7 1.71": the
+  VERSION in the game's param.sfo) instead of "PS4".
+* FIX-RT-012: GT7 starts with SHADGT_SCRIPTS=0: patches\scripts holds GT Sport's replacement scripts
+  (GALLERY.ADC, UI_KIT.ADC...), and in a shared folder the renderer served them to GT7 too.
+
+## 0.3.6 - 2026-11-20
+
+* FIX-RT-007: `--game` (snapshots and `--setup --game`) used the GT7 folder an older launcher saved in
+  RyGT-Launcher.ini, so `--setup --game gt7` would have set GT7 up there instead of in the launcher's folder.
+  It now uses the launcher's folder like the window does. And GT7 no longer reads GT Sport's
+  user\custom_configs\CUSA03220.json when its own CUSA24769.json is missing and GTSport.exe shares the folder
+  (the runtime's GameSerial.hpp; only a GT7 folder from before GAME-004 falls back to it).
+  The Game page names a former GT7 folder only when it still holds GT7's files or saves.
+
+## 0.3.5 - 2026-11-19
+
+* FEAT-RT-006: RyGTS packages carry GT7's files too (libs\libSceTextToSpeech.prx, patches\CUSA24769.xml, and
+  the server: RyGTServer.exe, libzstd.dll, shadNet and its data), so one RyGTS folder runs both games and
+  GT7 updates with it. An update never replaces server\shadnet\shadnet.cfg, which holds the keys the
+  Online page made. The Game page's GT7 hint names the update as the way to get them.
+
+## 0.3.4 - 2026-11-19
+
+* FEAT-RT-005: GT7 no longer has a folder of its own. Both games use the launcher's folder, since every
+  file either game writes there follows its serial; the Game page's GT7 folder field is gone. GT7 is
+  ready once that folder has GT7's files (libs\libSceTextToSpeech.prx, patches\CUSA24769.xml). A GT7
+  folder an older launcher saved is no longer used; the Game page names it, so its saves and settings
+  can be copied over.
+
+## 0.3.3 - 2026-11-19
+
+* FIX-GTS-271 (from rygt7 7dbe4e2, which came after the merged 6178d0b): GT7's online-service keys
+  are no longer in RyGTServer or tools/vegas_decode.py. RyGTServer reads them from your own GT7
+  eboot.bin, which the Online page passes when it starts hosting; without it, GT7's online service
+  stays off. GT Sport is not affected.
+
+## 0.3.2 - 2026-11-18
+
+Brings 0.2.3 and 0.2.4 from development (the merge into FEAT-GTS-291's branch):
 
 * FIX-GTS-294: Set up and Play no longer make the offline livery and decal scripts from the game's
   files. Reading them needed the game volumes' decryption keys, so adcpatch's all and extract
   commands and its GTToolsSharp dependency are removed too. Scripts already in patches\scripts
   are still used; adcpatch can still patch scripts you supply yourself.
-
-## 0.2.3 - 2026-11-16
-
 * FIX-GTS-293: Set up and Play no longer copy shader programs out of the game's files. That step
   needed the game volumes' decryption keys, so adcpatch's shader commands (shaderindex,
   shadercodes, manifestpack, manifestprep, shaderpack, shaderprep) are removed too. Shaders now
   compile the first time they are needed, and the shader folder keeps them for later starts.
+
+## 0.3.1 - 2026-11-15
+
+* FEAT-GTS-291: The launcher is RyGT Launcher, RyGTLauncher.exe, for both games: the window title
+  ("RyGT Launcher - Gran Turismo Sport", "RyGT Launcher - Gran Turismo 7"), the start screen's version
+  line, Settings > About and the exe's version information name it. The releases keep their names:
+  RyGTS (GT Sport's) and ryGT7 (GT7's). Both packages ship RyGTLauncher.exe instead of RyGTS.exe and
+  RyGT7.exe.
+* FEAT-GTS-291: Both games may share ONE folder (GTSport.exe and GT7.exe side by side): every name a game
+  writes there follows its serial (CUSA03220 GT Sport, CUSA24769 GT7). The settings file is
+  `<serial>.RyGT.ini` (CUSA03220.RyGT.ini, CUSA24769.RyGT.ini), read by the launcher and the runtime; GT7's
+  RyGT7.ini and the RyGT.ini it mirrored into (with online play's keys) become one CUSA24769.RyGT.ini.
+  Set up works in `convert\<serial>`, the game's /temp0 and /data are `temp0\<serial>` and `data\<serial>`
+  (GT7's offline catalog `data\CUSA24769\gt7offline`), and the launcher's setup lines go to
+  `logs\<serial>\setup.log`, no longer setup.log in the folder. At start and before Set up and Play the
+  launcher moves a folder's old names (libc does the same at load for a game started directly), only
+  where they are clearly the game's: RyGT.ini is renamed, GT7's two files merged and kept as
+  `.moved-<date>`, folders moved into `<name>\<serial>` in three steps that a later start finishes if cut
+  short. Nothing is deleted or overwritten; each step is in the setup log. Both packages ship the same
+  libs\libSceMbus.prx. GT Sport may use a ryGT7 folder, and GT7's folder may be GT Sport's.
+* FEAT-GTS-291: A folder updated by an older launcher still holds RyGTS.exe or RyGT7.exe. At start,
+  RyGTLauncher.exe renames an older launcher in its own folder to RyGTS.exe.old or RyGT7.exe.old, only
+  when the file's version information names the old launcher (product RyGTS or ryGT7); GTSport.exe,
+  GT7.exe and other files are never touched. Players keep one launcher, and a shortcut to the old name
+  fails instead of starting an outdated launcher: point it at RyGTLauncher.exe. A failed rename is
+  written to the setup log and nothing else changes. Rolling back to a release from before
+  RyGTLauncher.exe puts the old launcher back and starts it.
+* FEAT-GTS-291: One updater for both games. GT7 uses the same updater as GT Sport (RyGT-Team/RyGTS
+  releases on GitHub, Stable, Prerelease and Nightly channels, Changelog, roll back), with one Updates
+  section in Settings > About; ryGT7's GitLab updater is gone. It updates the selected game's folder,
+  and only from a package that has that game's files (GT Sport's CUSA03220.json, GT7's CUSA24769.xml),
+  so one game's runtime is never installed over the other's. A ryGT7 folder from GitLab is shown with
+  its version but isn't updated until a RyGTS package for GT7 is installed in it.
+
+## 0.3.0 - 2026-11-15
+
+* FEAT-GTS-290: One launcher for Gran Turismo Sport and Gran Turismo 7. The home view has a Game list;
+  picking a game fades the launcher's accent (red GT Sport, blue GT7) and its pictures, and the settings
+  become that game's. GT7 brings ryGT7's pages (Display, Graphics, Controls, Account, Online), its Set up
+  (Offline mode patch) and its updates (GitLab). Each game keeps its own folder, exe, settings file
+  (RyGT.ini, RyGT7.ini), launch environment and logs; the Game page lists both games' folders and files.
+  RyGT-Launcher.ini beside RyGTS.exe remembers the game picked last and each game's folder; nothing in a
+  GT Sport folder changes. Shared pages: Game, Shaders, About (with Updates), Advanced. `--setup` and
+  `--snapshot` take `--game gts|gt7`. See loader/UNIFIED-LAUNCHER.md.
 
 ## 0.2.2 - 2026-11-15
 

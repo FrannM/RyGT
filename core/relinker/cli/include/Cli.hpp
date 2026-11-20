@@ -34,6 +34,9 @@ struct Args {
     std::string outputPath;
     std::string reportPath;
     std::string runPath = "$ORIGIN/libs";
+    // FEAT-GTS-291: the folder, relative to the output executable, the converted sce_module goes in
+    // (and that the executable loads it from): app0, or app0/<serial> so two games share one folder.
+    std::string app0Path = "app0";
     std::set<std::string> excludedSceModules;
 };
 

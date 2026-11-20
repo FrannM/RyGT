@@ -1,5 +1,28 @@
 # Notes for agents working on RyGTS
 
+## Ticket IDs: RT for both games, GTS or GT7 for one
+
+Every change carries a ticket ID of the form `<KIND>-<GAME>-<NNN>` in its commit subject and in
+the code comments next to it.
+
+| Part | Values |
+|---|---|
+| Kind | `FIX`, `PERF`, `DIAG`, `FEAT` |
+| Game | `RT` when the change applies to both games (the runtime, the launcher, packaging, CI), `GTS` for GT Sport only, `GT7` for GT7 only |
+| Number | three digits |
+
+- **RT has its own count, started at 001 on 2026-11-17** (`FIX-RT-001`, `FEAT-RT-002`, ...).
+  GTS and GT7 keep the counts they had; numbers are never reused within one tag. The renderer
+  (shadGT) uses `SGT` for its shared work, with a count of its own.
+- **Use RT for anything shared**: runtime modules, the unified launcher, switches, updater,
+  packages, CI. Use GTS or GT7 only when the code is gated to one game (a game hook, a per-game
+  default, one game's serial).
+- **Before taking a number**, check it is free: `git log --all` subjects, `git grep` of the tree and
+  the open and closed PRs' titles (`gh pr list --state all`). Another contributor may have used
+  the next number on a branch you have not fetched.
+- **Old tickets keep their IDs.** Do not rename `FEAT-GTS-…` comments of changes that are already
+  pushed; new work on them takes a new RT number and may name the old one.
+
 ## Switch names: SHADGT_, RYGT_ or SHARED_ (FEAT-GTS-275)
 
 From FEAT-GTS-275 on, an environment switch is named after where it takes effect:
@@ -71,14 +94,20 @@ has to be published like this:
 - **The tag must point at the commit the package was built from** (its `BUILD_INFO.txt` commit).
   The updater reads the tag's commit to skip a release that is the same build as the installed
   one, for example the newest nightly.
-- **A release installs its own launcher.** Publish one whose `RyGTS.exe` has the updater you want
+- **A release installs its own launcher.** Publish one whose `RyGTLauncher.exe` has the updater you want
   players to keep.
 
 ## Launcher build
 
-`loader\build.cmd [output folder]` builds `RyGTS.exe` with the .NET Framework 4 `csc`, which only
+`loader\build.cmd [output folder]` builds `RyGTLauncher.exe` (RyGT Launcher, for both games) with the .NET Framework 4 `csc`, which only
 accepts **C# 5**: no local functions, `out var`, tuples or string interpolation. Add new `.cs`
-files to the list in `build.cmd`.
+files to the list in `build.cmd` and to `SOURCES` in `loader\test-launcher.cmd`, which builds the
+launcher and runs its checks (`loader\test-launcher.cmd <output folder>`).
+
+The launcher is for both GT Sport and GT7 (FEAT-GTS-290, `loader/UNIFIED-LAUNCHER.md`): what both games
+share is in `RyGTLoader.cs`, what only one has in `GtsPages.cs` or `Gt7Pages.cs`. Each game keeps its own
+settings file (`<serial>.RyGT.ini`) and launch environment, and every name it writes in a folder follows its serial,
+so both games may share one folder (FEAT-GTS-291); change one game's launch only in its own file.
 
 ## Launcher version
 
