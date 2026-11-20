@@ -12,6 +12,7 @@ CI fails when the two disagree.
   RyGTS package ships) and launcher\logo.png were used for both games. They are GT Sport's now while
   GTSport.exe is in the folder (a ryGT7-only folder keeps them for GT7); each game's own pictures go in
   launcher\<serial>, and GT7 otherwise shows its built-in blue picture again.
+* FIX-RT-009: GT7's About page has GT Sport's notice too, with "Copyright © 2026 RyGT-Team."
 
 ## 0.3.6 - 2026-11-20
 

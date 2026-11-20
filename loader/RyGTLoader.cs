@@ -2622,9 +2622,12 @@ namespace RyGT
                 AutoSize = true, MaximumSize = new Size(860, 0), ForeColor = Dark.DimText, Tag = "heading", Margin = new Padding(1, 0, 0, 6),
                 // FEAT-GTS-273: the copyright and trademark notice.
                 Text = gt7
-                    ? "ryGT7 converts your own copy of Gran Turismo 7 to run on Windows. " +
-                      "It is a fan project, not affiliated with Sony Interactive Entertainment or Polyphony Digital; " +
-                      "Gran Turismo is their trademark. You need your own copy of the game." + Environment.NewLine +
+                    // FIX-RT-009: the same notice as GT Sport's, with the RyGT-Team copyright.
+                    ? "ryGT7 converts your own copy of Gran Turismo 7 to run on Windows. You need your own copy of the game." +
+                      Environment.NewLine + Environment.NewLine +
+                      "Copyright © 2026 RyGT-Team." + Environment.NewLine +
+                      "Gran Turismo is a trademark of Sony Interactive Entertainment. " +
+                      "This project is independent of Sony and Polyphony Digital." + Environment.NewLine +
                       // FEAT-GTS-269: the attribution the NVIDIA RTX SDKs License asks for (the DLSS plugin).
                       "This software uses NVIDIA DLSS. NVIDIA, the NVIDIA logo and DLSS are trademarks and/or registered trademarks of NVIDIA Corporation in the U.S. and other countries."
                     : "RyGTS converts your own copy of Gran Turismo Sport to run on Windows. You need your own copy of the game." +
