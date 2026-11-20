@@ -6,6 +6,15 @@ The version lives in `loader/Version.cs`. To release a change, bump
 `LauncherVersion.Value` there and add a section here with the same number;
 CI fails when the two disagree.
 
+## 0.3.6 - 2026-11-20
+
+* FIX-RT-007: `--game` (snapshots and `--setup --game`) used the GT7 folder an older launcher saved in
+  RyGT-Launcher.ini, so `--setup --game gt7` would have set GT7 up there instead of in the launcher's folder.
+  It now uses the launcher's folder like the window does. And GT7 no longer reads GT Sport's
+  user\custom_configs\CUSA03220.json when its own CUSA24769.json is missing and GTSport.exe shares the folder
+  (the runtime's GameSerial.hpp; only a GT7 folder from before GAME-004 falls back to it).
+  The Game page names a former GT7 folder only when it still holds GT7's files or saves.
+
 ## 0.3.5 - 2026-11-19
 
 * FEAT-RT-006: RyGTS packages carry GT7's files too (libs\libSceTextToSpeech.prx, patches\CUSA24769.xml, and

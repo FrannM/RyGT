@@ -5,7 +5,8 @@
 //     falls back to the executable's name (GT7.exe is GT7, anything else GT Sport).
 //   - The settings: user\custom_configs\<serial>.json next to the game's exe. A GT7 folder from
 //     before the serial change (started without the launcher, which renames the file) still has
-//     CUSA03220.json; it is read while CUSA24769.json is missing. Nothing here writes either file.
+//     CUSA03220.json; it is read while CUSA24769.json is missing, unless GTSport.exe is in the folder
+//     (FIX-RT-007: there CUSA03220.json is GT Sport's own). Nothing here writes either file.
 //   - FEAT-GTS-291: the launcher's settings (game=, update=, stdout_level=, online...): <serial>.RyGT.ini
 //     next to the game's exe (SettingsIniPath), where both games had RyGT.ini.
 #include <cstddef>
@@ -94,12 +95,13 @@ inline const char* GameSerial() {
 
 /// The settings file in a game folder (dir, with or without a trailing separator; "" is the
 /// current folder): user\custom_configs\<serial>.json, or under GT7 the old CUSA03220.json while
-/// only that exists. utf8: dir is UTF-8 (else the system code page, as fopen and the A APIs take).
+/// only that exists and GTSport.exe is not in the folder (FIX-RT-007: then it is GT Sport's).
+/// utf8: dir is UTF-8 (else the system code page, as fopen and the A APIs take).
 inline std::string GameConfigPath(std::string dir, bool utf8 = false) {
     if (!dir.empty() && dir.back() != '\\' && dir.back() != '/') dir += detail::kSeparator;
     const std::string folder = dir + "user" + detail::kSeparator + "custom_configs" + detail::kSeparator;
     std::string path = folder + GameSerial() + ".json";
-    if (RunningGt7() && !detail::Exists(path, utf8)) {
+    if (RunningGt7() && !detail::Exists(path, utf8) && !detail::Exists(dir + "GTSport.exe", utf8)) {
         std::string old = folder + kGtSport + ".json";
         if (detail::Exists(old, utf8)) return old;
     }
@@ -131,7 +133,8 @@ inline std::wstring GameConfigPath(std::wstring dir) {
     if (!dir.empty() && dir.back() != L'\\' && dir.back() != L'/') dir += L'\\';
     const std::wstring folder = dir + L"user\\custom_configs\\";
     std::wstring path = folder + (RunningGt7() ? L"CUSA24769" : L"CUSA03220") + L".json";
-    if (RunningGt7() && GetFileAttributesW(path.c_str()) == INVALID_FILE_ATTRIBUTES) {
+    if (RunningGt7() && GetFileAttributesW(path.c_str()) == INVALID_FILE_ATTRIBUTES &&
+        GetFileAttributesW((dir + L"GTSport.exe").c_str()) == INVALID_FILE_ATTRIBUTES) {
         std::wstring old = folder + L"CUSA03220.json";
         if (GetFileAttributesW(old.c_str()) != INVALID_FILE_ATTRIBUTES) return old;
     }

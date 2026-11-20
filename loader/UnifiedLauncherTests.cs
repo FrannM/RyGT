@@ -59,6 +59,14 @@ namespace RyGT
                   "GT Sport's folder stays the launcher's");
             File.WriteAllText(Path.Combine(gts, LauncherState.FileName), "game=gts\ngts_root=" + gt7 + "\n");
             Check(new LauncherState(gts).RootOf(GameKind.GTSport) == gts, "A saved GT Sport folder is ignored");
+            // FIX-RT-007: --game (snapshots, --setup --game) is transient, and it ignores saved folders too.
+            File.WriteAllText(Path.Combine(gts, LauncherState.FileName), "game=gt7\ngts_root=" + gt7 + "\ngt7_root=" + gt7 + "\n");
+            var forced = new LauncherState(gts) { Transient = true };
+            Check(forced.RootOf(GameKind.GT7) == gts && forced.RootOf(GameKind.GTSport) == gts && forced.FormerGt7Root() == gt7,
+                  "--game ignores the saved folders and still names the former GT7 folder");
+            string empty = Folder(root, "emptyGT7");
+            File.WriteAllText(Path.Combine(gts, LauncherState.FileName), "gt7_root=" + empty + "\n");
+            Check(new LauncherState(gts).FormerGt7Root() == null, "An empty former GT7 folder is not named");
             // A transient session may still point GT Sport elsewhere. FEAT-GTS-291: GT Sport may use the
             // ryGT7 folder too, every name either game writes there follows its serial.
             var pointed = new LauncherState(gts) { Transient = true };

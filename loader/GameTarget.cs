@@ -197,6 +197,8 @@ namespace RyGT
         readonly string launcherRoot, path;
         readonly List<string> otherLines = new List<string>();
         readonly Dictionary<GameKind, string> roots = new Dictionary<GameKind, string> { { GameKind.GTSport, "" }, { GameKind.GT7, "" } };
+        // FIX-RT-007: a folder a transient session was given (SetRoot), never the one an older launcher saved.
+        readonly Dictionary<GameKind, string> given = new Dictionary<GameKind, string> { { GameKind.GTSport, "" }, { GameKind.GT7, "" } };
         public GameKind Last;
         /// Set for the tests and --setup --game: nothing is written back.
         public bool Transient;
@@ -232,7 +234,7 @@ namespace RyGT
         }
 
         /// The folder as set (empty: the default below).
-        public string Setting(GameKind game) { return roots[game]; }
+        public string Setting(GameKind game) { return Transient && given[game].Length > 0 ? given[game] : roots[game]; }
 
         /// Sets a game's folder; the default folder (or nothing) is kept as empty, so it follows the launcher.
         public void SetRoot(GameKind game, string folder)
@@ -241,14 +243,14 @@ namespace RyGT
             // session (the tests, --setup --game with a folder) may point one elsewhere.
             if (!Transient) return;
             folder = (folder ?? "").Trim().TrimEnd('\\');
-            roots[game] = string.Equals(folder, DefaultRoot(game), StringComparison.OrdinalIgnoreCase) ? "" : folder;
+            given[game] = string.Equals(folder, DefaultRoot(game), StringComparison.OrdinalIgnoreCase) ? "" : folder;
         }
 
         /// The game's folder: the launcher's own (FEAT-RT-005: each game's files follow its serial, so both
         /// share it), or for a transient session the one set.
         public string RootOf(GameKind game)
         {
-            string set = Transient ? roots[game] : "";
+            string set = Transient ? given[game] : "";
             if (set.Length == 0) return DefaultRoot(game);
             try { return Path.GetFullPath(set).TrimEnd('\\'); }
             catch { return ""; } // not a path: as if none were set (the Game page shows what was typed)
@@ -261,11 +263,13 @@ namespace RyGT
         public string FormerGt7Root()
         {
             string set = roots[GameKind.GT7];
-            if (Transient || set.Length == 0) return null;
+            if (set.Length == 0) return null;
             try
             {
                 string full = Path.GetFullPath(set).TrimEnd('\\');
-                return !string.Equals(full, launcherRoot.TrimEnd('\\'),StringComparison.OrdinalIgnoreCase) && Directory.Exists(full) ? full : null;
+                // FIX-RT-007: only a folder that still holds GT7's files or saves, not an empty one.
+                return !string.Equals(full, launcherRoot.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase) && Directory.Exists(full) &&
+                       (LooksLikeGt7(full) || Directory.Exists(Path.Combine(full, "user", "savedata"))) ? full : null;
             }
             catch { return null; }
         }
