@@ -892,7 +892,7 @@ namespace RyGT
                 Log("This update is not yet verified. The converter will use its executable without version-specific offsets.");
             foreach (string name in new[] { "libSceVideoOut.prx", "libSceMbus.prx", "libSceTextToSpeech.prx" })
                 if (!File.Exists(Path.Combine(root, "libs", name)))
-                    throw new Exception("The ryGT7 runtime is incomplete: libs\\" + name + " is missing. Extract the full release archive first.");
+                    throw new Exception("The RyGT runtime is incomplete: libs\\" + name + " is missing. Extract the full release archive first.");
 
             string fontDir, font2Dir;
             FindFonts(settings.Fonts, out fontDir, out font2Dir);
@@ -1047,7 +1047,7 @@ namespace RyGT
                 if (Wine.Detected) unixLinks[target] = pair.Value;
                 else if (!Native.CreateHardLink(target, pair.Value, IntPtr.Zero) &&
                          !Native.CreateSymbolicLink(target, pair.Value, 2))
-                    throw new Exception("Could not link " + pair.Value + ". Keep ryGT7 on the game's drive or enable Windows Developer Mode.");
+                    throw new Exception("Could not link " + pair.Value + ". Keep RyGT on the game's drive or enable Windows Developer Mode.");
                 linked++;
             }
             if (Wine.Detected) Wine.Link(unixLinks);

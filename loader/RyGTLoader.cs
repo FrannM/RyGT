@@ -1899,7 +1899,7 @@ namespace RyGT
 
         public ChangelogDialog(ReleaseInfo release)
         {
-            Text = release.Name.Length > 0 ? release.Name : "Changelog";
+            Text = release.Name.Length > 0 ? release.Name.Replace("RyGTS", "RyGT") : "Changelog"; // FIX-RT-010: one name
             try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { } // the launcher's logo
             StartPosition = FormStartPosition.CenterParent;
             ShowInTaskbar = false;
@@ -2306,7 +2306,8 @@ namespace RyGT
         {
             bool ready = RootReady(target);
             Text = info.WindowTitle;
-            // FIX-RT-010: one launcher, one icon: the window keeps RyGTLauncher.exe's own for both games.
+            // FIX-RT-010: one launcher, one icon: the window takes RyGTLauncher.exe's own for both games.
+            try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
             Image gameIcon = null;
             if (target == GameKind.GT7 && ready)
             {
@@ -2325,10 +2326,21 @@ namespace RyGT
             home.PlayerLogo = null;
             if (target == GameKind.GT7)
             {
-                home.Caption = Dark.Spaced("CUSA24769   " + (char)183 + "   PS4");
+                // FIX-RT-011: GT7's update, the VERSION in the game's param.sfo (01.71 -> UPDATE 1.71; APP_VER
+                // stays 01.00 in a merged dump), else PS4.
+                string update = null;
+                try
+                {
+                    string sfo = ready ? GameFile("sce_sys\\param.sfo") : null;
+                    string value;
+                    if (sfo != null && GameLayout.ReadSfo(sfo).TryGetValue("VERSION", out value) && value.Trim().Length > 0)
+                        update = value.Trim().TrimStart('0');
+                }
+                catch { }
+                home.Caption = Dark.Spaced("CUSA24769   " + (char)183 + "   " + (update != null ? "UPDATE " + update : "PS4"));
                 string release = ready ? Updater.ReleaseVersion(root) : null;
                 home.Version = "RyGT Launcher " + LauncherVersion.Value + "  " + (char)183 + "  RyGT" + (release == null ? "" : " " + Updater.Display(release)) +
-                               "  " + (char)183 + "  GT7 " + (char)183 + " CUSA24769";
+                               "  " + (char)183 + "  GT7" + (update != null ? " " + update : "") + " " + (char)183 + " CUSA24769";
                 try { home.PlayerLogo = gameIcon ?? Icon.ToBitmap(); } catch { }
             }
             else
@@ -2513,7 +2525,7 @@ namespace RyGT
             string former = game == GameKind.GT7 ? state.FormerGt7Root() : null;
             if (!ready)
                 files.Controls.Add(Hint(game == GameKind.GT7
-                    ? "GT7 uses this launcher's folder, like GT Sport. It doesn't have GT7's files yet (libs\\libSceTextToSpeech.prx, patches\\CUSA24769.xml): update it to a RyGTS build that carries them (GT Sport's Settings > About > Updates), or copy them in from the ryGT7 release."
+                    ? "GT7 uses this launcher's folder, like GT Sport. It doesn't have GT7's files yet (libs\\libSceTextToSpeech.prx, patches\\CUSA24769.xml): update it to a RyGT build that carries them (Settings > About > Updates), or copy them in from the ryGT7 release."
                     : "The launcher's folder can't be used (it must hold converter, libs and tools)."));
             else if (game == GameKind.GTSport)
                 files.Controls.Add(Hint("Without PS4 dumped fonts, some in-game UI fonts may not draw or appear correctly."));
@@ -2788,7 +2800,7 @@ namespace RyGT
             string installed = Updater.InstalledVersion(root);
             if (installed == null)
             {
-                if (manual) MessageBox.Show(this, "The " + info.Product + " folder didn't come from a RyGTS package (it has no RyGTS manifest.json or BUILD_INFO.txt), " +
+                if (manual) MessageBox.Show(this, "The " + info.Product + " folder didn't come from a RyGT package (it has no manifest.json or BUILD_INFO.txt), " +
                                            "so the launcher can't update it.");
                 return;
             }
@@ -2838,10 +2850,10 @@ namespace RyGT
         {
             var release = pendingUpdate;
             if (release == null || busy) return;
-            if (MessageBox.Show(this, "Update RyGTS to " + Updater.Display(release.Version) + (release.Prerelease ? " (prerelease)" : "") + "?" +
+            if (MessageBox.Show(this, "Update RyGT to " + Updater.Display(release.Version) + (release.Prerelease ? " (prerelease)" : "") + "?" +
                                 Environment.NewLine + Environment.NewLine +
                                 "The launcher restarts when it is done. Your game, saves and settings are kept, and you can roll back " +
-                                "from Settings > About.", "Update RyGTS", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK)
+                                "from Settings > About.", "Update RyGT", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK)
                 return;
             busy = true;
             updateButton.Enabled = false;
@@ -2908,7 +2920,7 @@ namespace RyGT
             rollBack.Click += delegate
             {
                 if (busy) return;
-                if (MessageBox.Show(this, "Put back RyGTS " + Updater.Display(last.Item2) + " (as before the update to " + Updater.Display(last.Item3) +
+                if (MessageBox.Show(this, "Put back RyGT " + Updater.Display(last.Item2) + " (as before the update to " + Updater.Display(last.Item3) +
                                     ") and restart the launcher?", "Roll back", MessageBoxButtons.OKCancel) != DialogResult.OK)
                     return;
                 try { Updater.RollBack(root); Updater.Restart(root); }

@@ -312,7 +312,7 @@ namespace RyGT
                     string when = (run["created_at"] as string ?? "").Replace('T', ' ').TrimEnd('Z');
                     return new ReleaseInfo
                     {
-                        Artifact = true, Version = "ci-" + sha.Substring(0, 8), Tag = sha, Commit = sha, Name = Product + " nightly " + sha.Substring(0, 8),
+                        Artifact = true, Version = "ci-" + sha.Substring(0, 8), Tag = sha, Commit = sha, Name = "RyGT nightly " + sha.Substring(0, 8),
                         Notes = "Built " + (when.Length >= 16 ? when.Substring(0, 16) + " UTC" : when) + " from " + Branch + ".",
                         ZipName = NightlyPrefix + sha.Substring(0, 8) + ".zip",
                         ZipUrl = "https://nightly.link/" + Repository + "/actions/runs/" + id + "/" + name + ".zip"

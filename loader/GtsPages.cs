@@ -1039,7 +1039,7 @@ namespace RyGT
             // 2. Convert.
             SetStatus("Converting the game for Windows (this takes a while)...");
             string converter = Path.Combine(root, "converter", "ryty.exe");
-            if (!File.Exists(converter)) throw new Exception("converter\\ryty.exe is missing from the RyGTS folder.");
+            if (!File.Exists(converter)) throw new Exception("converter\\ryty.exe is missing from the RyGT folder.");
             string staging = Path.Combine(work, "game-rebuild");
             string stagedExe = Path.Combine(staging, "GTSport.exe");
             // FEAT-GTS-291: the converted modules go in app0\CUSA03220 (App0Layout), and GTSport.exe loads them from there.
