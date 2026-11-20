@@ -94,7 +94,7 @@ def verify(channel=None):
     # Validate all artifacts before upload.
     for variant in variants:
         channel = variant['channel']
-        archive = folder / f'RyGTS-{channel}-{commit[:8]}.zip'
+        archive = folder / f'RyGT-{channel}-{commit[:8]}.zip'
         checksum = archive.with_suffix('.zip.sha256')
         digest, name = checksum.read_text().strip().split('  ', 1)
         with archive.open('rb') as stream:

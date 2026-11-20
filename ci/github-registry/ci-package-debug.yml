@@ -1,5 +1,5 @@
-name: RyGTS Diagnostics CI package
-run-name: RyGTS Diagnostics development build
+name: RyGT Diagnostics CI package
+run-name: RyGT Diagnostics development build
 on:
   push:
     branches: [development]
@@ -189,8 +189,8 @@ jobs:
         with:
           name: debug-ci-${{ needs.source.outputs.commit }}-renderer-${{ needs.source.outputs.renderer_commit }}
           path: |
-            source/dist/RyGTS-debug-ci-*.zip
-            source/dist/RyGTS-debug-ci-*.zip.sha256
+            source/dist/RyGT-debug-ci-*.zip
+            source/dist/RyGT-debug-ci-*.zip.sha256
           if-no-files-found: error
           retention-days: 7
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

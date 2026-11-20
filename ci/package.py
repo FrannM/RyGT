@@ -240,7 +240,7 @@ def assemble(commit, flavor, channel, suffix):
     expected = lines[1]
     if b'1440140585595047977' not in renderer.read_bytes() or b'DISCORD-RPC: compiled in;' not in renderer.read_bytes():
         raise RuntimeError('Discord RPC missing or application ID incorrect')
-    name = f'RyGTS-{channel}-{commit[:8]}'
+    name = f'RyGT-{channel}-{commit[:8]}'  # FIX-RT-015: RyGT, one package for both games
     destination = Path('dist'); stage = destination / name
     stage.mkdir(parents=True, exist_ok=False)
 
@@ -329,7 +329,8 @@ def assemble(commit, flavor, channel, suffix):
         shutil.copy2(root / 'ci/diagnostics/DEBUG-README.txt', stage / 'README.txt')
     else:
         (stage / 'README.txt').write_text(
-            'RyGTS Release CI package (ci)\n\nRun RyGTLauncher.exe to set up your own decrypted GT Sport CUSA03220 v1.69 dump.\n'
+            'RyGT Release CI package (ci)\n\nRun RyGTLauncher.exe to set up your own decrypted GT Sport CUSA03220 v1.69 and/or\n'
+            'Gran Turismo 7 CUSA24769 dumps; both games run from this one folder.\n'
             'Debug/Diagnostics is distributed separately as debug-ci.\n'
             'Game executable/data, firmware, saves, logs, caches and NVIDIA SDK DLLs are excluded.\n'
             'Supply required firmware modules and optional NVIDIA upscaler files yourself.\n'

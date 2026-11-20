@@ -131,7 +131,7 @@ class VerifyTests(IsolatedWorkflowFiles):
             root = Path(directory)
             folder = root / 'source' / 'dist'
             folder.mkdir(parents=True)
-            archive = folder / f'RyGTS-ci-{SOURCE[:8]}.zip'
+            archive = folder / f'RyGT-ci-{SOURCE[:8]}.zip'
             with zipfile.ZipFile(archive, 'w') as package:
                 package.writestr(f'{archive.stem}/BUILD_INFO.txt', json.dumps({'renderer_source': f'{REPOSITORY}\n{RENDERER}\n'}))
             digest = hashlib.sha256(archive.read_bytes()).hexdigest()
