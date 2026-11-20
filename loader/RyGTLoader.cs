@@ -1550,50 +1550,22 @@ namespace RyGT
             if (ReadSubsystem(exe) != GuiSubsystem) WriteSubsystem(exe, GuiSubsystem);
         }
 
-        /// FEAT-GTS-290 (from ryGT7): GT7.exe gets the player's own game icon (sce_sys\icon0.png, by default
-        /// the one in app0 beside the executable) instead of the launcher's.
-        public static void PrepareGt7(string exe, string iconPath = null)
+        /// FIX-RT-013: GT7.exe gets ryGT7's own icon (ryGT7.ico, built into RyGTLauncher.exe), as GTSport.exe
+        /// gets RyGT's, no longer the game's icon0.png from the player's dump.
+        public static void PrepareGt7(string exe)
         {
-            if (iconPath == null) iconPath = Path.Combine(App0Layout.Top(Path.GetDirectoryName(exe), GameInfo.GT7.TitleId), "sce_sys", "icon0.png");
-            if (!Wine.Detected && File.Exists(iconPath) && !HasIcon(exe)) ApplyIcon(exe, IconFromPng(iconPath));
+            if (!Wine.Detected && !HasIcon(exe)) ApplyIcon(exe, EmbeddedIcon("ryGT7.ico"));
             if (ReadSubsystem(exe) != GuiSubsystem) WriteSubsystem(exe, GuiSubsystem);
         }
 
-        static byte[] EmbeddedIcon()
+        static byte[] EmbeddedIcon(string name = "ryGT.ico")
         {
-            using (var stream = typeof(GameExe).Assembly.GetManifestResourceStream("ryGT.ico"))
+            using (var stream = typeof(GameExe).Assembly.GetManifestResourceStream(name))
             {
                 if (stream == null) throw new Exception("RyGTLauncher.exe has no embedded icon.");
                 var ico = new byte[stream.Length];
                 stream.Read(ico, 0, ico.Length);
                 return ico;
-            }
-        }
-
-        /// A .ico of PNG images (16 to 256 pixels) made from a picture.
-        static byte[] IconFromPng(string iconPath)
-        {
-            using (var original = Image.FromFile(iconPath))
-            using (var output = new MemoryStream())
-            using (var writer = new BinaryWriter(output))
-            {
-                int[] sizes = { 16, 24, 32, 48, 64, 128, 256 };
-                var images = new List<byte[]>();
-                foreach (int size in sizes)
-                    using (var bitmap = new Bitmap(original, size, size))
-                    using (var png = new MemoryStream())
-                    { bitmap.Save(png, System.Drawing.Imaging.ImageFormat.Png); images.Add(png.ToArray()); }
-                writer.Write((ushort)0); writer.Write((ushort)1); writer.Write((ushort)sizes.Length);
-                int offset = 6 + sizes.Length * 16;
-                for (int i = 0; i < sizes.Length; i++)
-                {
-                    writer.Write((byte)(sizes[i] == 256 ? 0 : sizes[i]));
-                    writer.Write((byte)(sizes[i] == 256 ? 0 : sizes[i]));
-                    writer.Write((ushort)0); writer.Write((ushort)1); writer.Write((ushort)32);
-                    writer.Write(images[i].Length); writer.Write(offset); offset += images[i].Length;
-                }
-                foreach (byte[] image in images) writer.Write(image);
-                return output.ToArray();
             }
         }
 

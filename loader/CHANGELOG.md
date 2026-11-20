@@ -22,6 +22,8 @@ CI fails when the two disagree.
   VERSION in the game's param.sfo) instead of "PS4".
 * FIX-RT-012: GT7 starts with SHADGT_SCRIPTS=0: patches\scripts holds GT Sport's replacement scripts
   (GALLERY.ADC, UI_KIT.ADC...), and in a shared folder the renderer served them to GT7 too.
+* FIX-RT-013: GT7's Set up gives GT7.exe ryGT7's blue 7 icon (loader/ryGT7.ico, from the ryGT7 launcher), as
+  GTSport.exe gets RyGT's, instead of the game's icon0.png from the player's dump.
 
 ## 0.3.6 - 2026-11-20
 

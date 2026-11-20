@@ -9,7 +9,7 @@ set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe
 if not exist "%CSC%" set CSC=%WINDIR%\Microsoft.NET\Framework\v4.0.30319\csc.exe
 set SYMBOLS=
 if /i "%~2"=="Diagnostics" set SYMBOLS=/debug:full /pdb:"%OUT%\RyGTLauncher.pdb"
-"%CSC%" /nologo /target:winexe /optimize+ %SYMBOLS% /win32icon:"%~dp0ryGT.ico" /resource:"%~dp0ryGT.ico",ryGT.ico ^
+"%CSC%" /nologo /target:winexe /optimize+ %SYMBOLS% /win32icon:"%~dp0ryGT.ico" /resource:"%~dp0ryGT.ico",ryGT.ico /resource:"%~dp0ryGT7.ico",ryGT7.ico ^
     /resource:"%~dp0launcher\background.png",gts-background.png /resource:"%~dp0launcher-gt7\background.png",gt7-background.png ^
     /resource:"%~dp0launcher-gt7\logo.png",gt7-logo.png /resource:"%~dp0launcher\logo.png",gts-logo.png /out:"%OUT%\RyGTLauncher.exe" ^
     /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.Web.Extensions.dll /r:System.Xml.dll ^
