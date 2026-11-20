@@ -73,8 +73,8 @@ letters, digits and `_`; other names are flagged and not saved. An empty value r
 ## Storage and launch
 
 Everything is saved as you change it, as `env=<1|0>|NAME=VALUE` lines in `<serial>.RyGT.ini` (the game's
-`user\custom_configs\CUSA03220.json` is not touched). When the launcher starts `GTSport.exe` (and on
-the device-loss relaunch) the entries are applied after the launcher's own variables, so they win.
+`user\custom_configs\CUSA03220.json` is not touched). When the launcher starts `GTSport.exe` the
+entries are applied after the launcher's own variables, so they win.
 Only a count is written to the setup log, never values.
 
 To confirm the switches reach the game: `logs\<serial>\setup.log` gets "N custom environment variable(s) applied." when

@@ -6,6 +6,14 @@ The version lives in `loader/Version.cs`. To release a change, bump
 `LauncherVersion.Value` there and add a section here with the same number;
 CI fails when the two disagree.
 
+## 0.3.9 - 2026-11-20
+
+* FIX-GTS-491: After a GPU device loss, GT Sport and GT7 are no longer started again by the launcher.
+  The interrupted session could not be resumed anyway; the restart hid the crash from the player
+  and ran a second session under the first one's launch. The game's setup log
+  (`logs\<serial>\setup.log`) now says when the device was lost and which log holds that session
+  (its `stdout.log`, renamed `stdout.log.<UTC time>` at the next start).
+
 ## 0.3.8 - 2026-11-20
 
 * FIX-RT-015: the packages are RyGT now: nightlies are RyGT-ci-<commit>.zip (RyGTS-ci- before) and the CI

@@ -90,7 +90,8 @@ and says where each feature lives now. FEAT-GTS-291 (0.3.1) gave it its own name
 | Obsolete settings prompt | FEAT-GTS-469/275 | none | GT Sport only |
 | Custom environment | env= lines in CUSA03220.RyGT.ini | env= lines in CUSA24769.RyGT.ini | **shared** (`CustomEnvironment`), saved in the game's ini |
 | Environment written at start | `RYGT_LOG_DIRECTORY`, `RYGT_HDD_STREAMING`, `SHADGT_ANTI_LAG`, `SHADGT_SHADER_OBJECT`, `SHADGT_MANIFEST_*`, `SHADGT_COMPILE_PACK`, render scale (`SHADGT_PATCH`, `SHADGT_SCENE_*`), custom | `RYGT_LOG_DIRECTORY`, `RYTY_INTEROP_BASE`, `RYGT_NATIVE_INPLACE_*`, `SHADGT_FPS_LOCK`, `RYGT_DRIVER_CACHE_MAX_MB`, `RYGT_AMD_SINGLE_SAMPLE_BARYCENTRIC`, `RYGT_MANIFEST_*`, `RYGT_COMPILE_PACK`, `RYGT_DLSSG_FRAMES`, `RYGT_UPSCALE_QUALITY`, `RYGT_TEXTURE_LOD_BIAS`, `RYGT_DLSS_TEMPORAL_MIP_*`, `RYGT_NEO*`, custom | unchanged per game |
-| Device-loss restart, log rotation, portable temp | yes | yes | **shared** |
+| Log rotation, portable temp | yes | yes | **shared** |
+| Device loss | restart once | restart once | no restart, a line in the game's setup log (FIX-GTS-491, 0.3.2) |
 | AMD Software entry, build SHA-256 record | yes | no | GT Sport only |
 | Single instance | mutex | none | mutex (both) |
 
