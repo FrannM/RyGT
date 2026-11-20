@@ -13,6 +13,8 @@ CI fails when the two disagree.
   GTSport.exe is in the folder (a ryGT7-only folder keeps them for GT7); each game's own pictures go in
   launcher\<serial>, and GT7 otherwise shows its built-in blue picture again.
 * FIX-RT-009: GT7's About page has GT Sport's notice too, with "Copyright © 2026 RyGT-Team."
+* FIX-RT-010: one name, RyGT, for both games: the home caption no longer ends in "RYGTS FOR WINDOWS" or
+  "RYGT7 FOR WINDOWS", and the version line, About, sidebar, folder rows and update notices say RyGT. The window keeps the RyGT icon for both games (GT7's own icon stays beside the player's ID). GT7's sidebar has Advanced above About, as GT Sport's does.
 
 ## 0.3.6 - 2026-11-20
 

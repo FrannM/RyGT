@@ -33,7 +33,7 @@ namespace RyGT
         public string ExeName;      // "GTSport.exe"
         public string ProcessName;  // "GTSport"
         public string IniName;      // "CUSA03220.RyGT.ini" (FEAT-GTS-291: <TitleId>.RyGT.ini)
-        public string Product;      // "RyGTS": the release whose folder the game is in
+        public string Product;      // "RyGT" for both (FIX-RT-010: one launcher, one name in its UI)
         public string TitleAccent;  // "SPORT": the home view's title is GRAN TURISMO <accent>
         public string WindowTitle;
         /// The launcher's accent while this game is picked: red for GT Sport, blue for GT7.
@@ -42,7 +42,7 @@ namespace RyGT
         public static readonly GameInfo GTSport = new GameInfo
         {
             Kind = GameKind.GTSport, Key = "gts", Name = "Gran Turismo Sport", Short = "GT Sport", TitleId = "CUSA03220",
-            ExeName = "GTSport.exe", ProcessName = "GTSport", IniName = "CUSA03220.RyGT.ini", Product = "RyGTS", TitleAccent = "SPORT",
+            ExeName = "GTSport.exe", ProcessName = "GTSport", IniName = "CUSA03220.RyGT.ini", Product = "RyGT", TitleAccent = "SPORT",
             WindowTitle = "RyGT Launcher - Gran Turismo Sport",
             Accent = Color.FromArgb(178, 24, 36), AccentHover = Color.FromArgb(206, 40, 52), AccentText = Color.FromArgb(240, 92, 76)
         };
@@ -50,7 +50,7 @@ namespace RyGT
         public static readonly GameInfo GT7 = new GameInfo
         {
             Kind = GameKind.GT7, Key = "gt7", Name = "Gran Turismo 7", Short = "GT7", TitleId = "CUSA24769",
-            ExeName = "GT7.exe", ProcessName = "GT7", IniName = "CUSA24769.RyGT.ini", Product = "ryGT7", TitleAccent = "7",
+            ExeName = "GT7.exe", ProcessName = "GT7", IniName = "CUSA24769.RyGT.ini", Product = "RyGT", TitleAccent = "7",
             WindowTitle = "RyGT Launcher - Gran Turismo 7",
             Accent = Color.FromArgb(24, 96, 196), AccentHover = Color.FromArgb(44, 120, 224), AccentText = Color.FromArgb(92, 162, 255)
         };

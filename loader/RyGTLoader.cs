@@ -2306,37 +2306,36 @@ namespace RyGT
         {
             bool ready = RootReady(target);
             Text = info.WindowTitle;
-            Icon icon = null;
-            try { icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
+            // FIX-RT-010: one launcher, one icon: the window keeps RyGTLauncher.exe's own for both games.
+            Image gameIcon = null;
             if (target == GameKind.GT7 && ready)
             {
-                // ryGT7: the window takes the player's own GT7 icon once Set up has found it.
+                // GT7's own icon (icon0.png) beside the player's online ID once Set up has found it.
                 try
                 {
                     string iconPath = GameFile("sce_sys\\icon0.png");
                     if (iconPath != null)
-                        using (var bitmap = new Bitmap(iconPath)) icon = Icon.FromHandle(bitmap.GetHicon());
+                        using (var bitmap = new Bitmap(iconPath)) gameIcon = new Bitmap(bitmap);
                 }
                 catch { }
             }
-            if (icon != null) Icon = icon;
             home.Accent = info.TitleAccent;
             home.Logo = LoadLogo(); // the game folder's, else the RY logo built into RyGTLauncher.exe
             home.Player = "";
             home.PlayerLogo = null;
             if (target == GameKind.GT7)
             {
-                home.Caption = Dark.Spaced("CUSA24769   " + (char)183 + "   PS4   " + (char)183 + "   RYGT7 FOR WINDOWS");
+                home.Caption = Dark.Spaced("CUSA24769   " + (char)183 + "   PS4");
                 string release = ready ? Updater.ReleaseVersion(root) : null;
-                home.Version = "RyGT Launcher " + LauncherVersion.Value + "  " + (char)183 + "  ryGT7" + (release == null ? "" : " " + Updater.Display(release)) +
+                home.Version = "RyGT Launcher " + LauncherVersion.Value + "  " + (char)183 + "  RyGT" + (release == null ? "" : " " + Updater.Display(release)) +
                                "  " + (char)183 + "  GT7 " + (char)183 + " CUSA24769";
-                try { home.PlayerLogo = Icon.ToBitmap(); } catch { }
+                try { home.PlayerLogo = gameIcon ?? Icon.ToBitmap(); } catch { }
             }
             else
             {
                 string installed = ready ? Updater.InstalledVersion(root) : null;
-                home.Caption = Dark.Spaced("CUSA03220   " + (char)183 + "   UPDATE 1.69   " + (char)183 + "   RYGTS FOR WINDOWS");
-                home.Version = "RyGT Launcher " + LauncherVersion.Value + "  " + (char)183 + "  RyGTS" + (installed == null ? "" : " " + Updater.Display(installed)) +
+                home.Caption = Dark.Spaced("CUSA03220   " + (char)183 + "   UPDATE 1.69");
+                home.Version = "RyGT Launcher " + LauncherVersion.Value + "  " + (char)183 + "  RyGT" + (installed == null ? "" : " " + Updater.Display(installed)) +
                                "  " + (char)183 + "  GT Sport 1.69 " + (char)183 + " CUSA03220";
             }
             if (fadePictures) home.ReplacePictures(LoadBackgrounds());
@@ -2369,7 +2368,7 @@ namespace RyGT
             SwitchWalker.Game = target;
             CustomEnvironment.ExeName = info.ExeName;
             pageNames = !ready ? new[] { "Game", "About" }
-                      : target == GameKind.GT7 ? new[] { "Game", "Display", "Graphics", "Shaders", "Controls", "Account", "Online", "About", "Advanced" }
+                      : target == GameKind.GT7 ? new[] { "Game", "Display", "Graphics", "Shaders", "Controls", "Account", "Online", "Advanced", "About" }
                       : new[] { "Game", "Display", "Graphics", "Shaders", "Controls", "Advanced", "About" };
 
             // The sidebar: the game's logo, or its title as text.
@@ -2615,22 +2614,22 @@ namespace RyGT
         {
             bool gt7 = target == GameKind.GT7;
             var aboutPage = NewPage("About", "About", gt7
-                ? "RyGT Launcher " + LauncherVersion.Value + " " + (char)183 + " ryGT7 for Windows " + (char)183 + " Gran Turismo 7 (CUSA24769)"
-                : "RyGT Launcher " + LauncherVersion.Value + " " + (char)183 + " RyGTS for Windows " + (char)183 + " Gran Turismo Sport (CUSA03220) " + (char)183 + " update 1.69");
+                ? "RyGT Launcher " + LauncherVersion.Value + " " + (char)183 + " Gran Turismo 7 (CUSA24769)"
+                : "RyGT Launcher " + LauncherVersion.Value + " " + (char)183 + " Gran Turismo Sport (CUSA03220) " + (char)183 + " update 1.69");
             aboutPage.Controls.Add(new Label
             {
                 AutoSize = true, MaximumSize = new Size(860, 0), ForeColor = Dark.DimText, Tag = "heading", Margin = new Padding(1, 0, 0, 6),
                 // FEAT-GTS-273: the copyright and trademark notice.
                 Text = gt7
                     // FIX-RT-009: the same notice as GT Sport's, with the RyGT-Team copyright.
-                    ? "ryGT7 converts your own copy of Gran Turismo 7 to run on Windows. You need your own copy of the game." +
+                    ? "RyGT converts your own copy of Gran Turismo 7 to run on Windows. You need your own copy of the game." +
                       Environment.NewLine + Environment.NewLine +
                       "Copyright © 2026 RyGT-Team." + Environment.NewLine +
                       "Gran Turismo is a trademark of Sony Interactive Entertainment. " +
                       "This project is independent of Sony and Polyphony Digital." + Environment.NewLine +
                       // FEAT-GTS-269: the attribution the NVIDIA RTX SDKs License asks for (the DLSS plugin).
                       "This software uses NVIDIA DLSS. NVIDIA, the NVIDIA logo and DLSS are trademarks and/or registered trademarks of NVIDIA Corporation in the U.S. and other countries."
-                    : "RyGTS converts your own copy of Gran Turismo Sport to run on Windows. You need your own copy of the game." +
+                    : "RyGT converts your own copy of Gran Turismo Sport to run on Windows. You need your own copy of the game." +
                       Environment.NewLine + Environment.NewLine +
                       "Copyright © 2026 RyGT-Team." + Environment.NewLine +
                       "Gran Turismo is a trademark of Sony Interactive Entertainment. " +
@@ -2814,8 +2813,8 @@ namespace RyGT
             if (latest != null && Updater.IsNewer(latest, installed, root)) // FIX-GTS-286: not the same build again
             {
                 pendingUpdate = latest;
-                home.Notice = (latest.Artifact ? "A newer RyGTS nightly is available: " + Updater.Display(latest.Version)
-                                               : "RyGTS " + latest.Version + (latest.Prerelease ? " (prerelease)" : "") + " is available") +
+                home.Notice = (latest.Artifact ? "A newer RyGT nightly is available: " + Updater.Display(latest.Version)
+                                               : "RyGT " + latest.Version + (latest.Prerelease ? " (prerelease)" : "") + " is available") +
                               " (you have " + Updater.Display(installed) + ")." +
                               (latest.Changes().Count > 0 ? "" : Environment.NewLine + latest.Summary(240)); // the notes are behind Changelog
                 updateButton.Text = "Update"; // the notice names the version; the button had no room for it
@@ -2828,8 +2827,8 @@ namespace RyGT
             {
                 MessageBox.Show(this, error != null ? "Could not check for updates: " + error.Message
                                     : latest == null && channel == Updater.Nightly ? "No nightly to update to was found (nightlies are kept for 7 days)."
-                                    : latest == null ? "No RyGTS " + ChannelName(channel) + " was found on GitHub."
-                                    : "RyGTS " + Updater.Display(installed) + " is the newest " + ChannelName(channel) + ".");
+                                    : latest == null ? "No RyGT " + ChannelName(channel) + " was found on GitHub."
+                                    : "RyGT " + Updater.Display(installed) + " is the newest " + ChannelName(channel) + ".");
             }
         }
 

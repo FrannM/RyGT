@@ -554,7 +554,7 @@ namespace RyGT
             librariesCard.Controls.Add(new SettingRow("AMD FSR 4 (Radeon RX 6000 and newer)", fsr4Download));
             librariesCard.Controls.Add(new SettingRow("NVIDIA DLSS and Streamline (RTX cards)", nvidiaDownload));
             librariesCard.Controls.Add(new SettingRow("Your own NVIDIA DLSS files", addDlss));
-            librariesCard.Controls.Add(Hint("RyGTS does not include these libraries; the buttons fetch each vendor's own files from its GitHub page."));
+            librariesCard.Controls.Add(Hint("RyGT does not include these libraries; the buttons fetch each vendor's own files from its GitHub page."));
 
             var performanceCard = Section(graphicsPage, "Performance");
             foreach (var box in new[] { wet, mirror })
