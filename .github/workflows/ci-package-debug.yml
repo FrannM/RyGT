@@ -1,5 +1,5 @@
-name: RyGTS Diagnostics CI package
-run-name: RyGTS Diagnostics development build
+name: RyGT Diagnostics CI package
+run-name: RyGT Diagnostics development build
 on:
   push:
     branches: [development]
@@ -37,8 +37,8 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          repository: RyGT-Team/RyGTS
-          ref: ${{ github.repository == 'RyGT-Team/RyGTS' && github.event_name == 'push' && github.sha || inputs.source_sha || 'development' }}
+          repository: RyGT-Team/RyGT
+          ref: ${{ github.repository == 'RyGT-Team/RyGT' && github.event_name == 'push' && github.sha || inputs.source_sha || 'development' }}
           persist-credentials: false
       - name: Select exact GitHub runtime revision
         id: controller
@@ -77,7 +77,7 @@ jobs:
           Set-Location $env:RYGT_CI_ROOT
           git init
           git config core.longpaths true
-          git remote add origin https://github.com/RyGT-Team/RyGTS.git
+          git remote add origin https://github.com/RyGT-Team/RyGT.git
           git fetch --depth=1 origin $env:SOURCE_SHA
           if ($LASTEXITCODE) { throw 'GitHub fetch failed' }
           git checkout --detach FETCH_HEAD
@@ -129,7 +129,7 @@ jobs:
           [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
           git init source
           cd source
-          git remote add origin https://github.com/RyGT-Team/RyGTS.git
+          git remote add origin https://github.com/RyGT-Team/RyGT.git
           git fetch --depth=1 origin "$SOURCE_SHA"
           git checkout --detach FETCH_HEAD
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
@@ -158,7 +158,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          repository: RyGT-Team/RyGTS
+          repository: RyGT-Team/RyGT
           ref: ${{ needs.source.outputs.controller_commit }}
           persist-credentials: false
       - name: Fetch exact GitHub source
@@ -167,7 +167,7 @@ jobs:
           [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
           git init source
           cd source
-          git remote add origin https://github.com/RyGT-Team/RyGTS.git
+          git remote add origin https://github.com/RyGT-Team/RyGT.git
           git fetch --depth=1 origin "$SOURCE_SHA"
           git checkout --detach FETCH_HEAD
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
@@ -189,8 +189,8 @@ jobs:
         with:
           name: debug-ci-${{ needs.source.outputs.commit }}-renderer-${{ needs.source.outputs.renderer_commit }}
           path: |
-            source/dist/RyGTS-debug-ci-*.zip
-            source/dist/RyGTS-debug-ci-*.zip.sha256
+            source/dist/RyGT-debug-ci-*.zip
+            source/dist/RyGT-debug-ci-*.zip.sha256
           if-no-files-found: error
           retention-days: 7
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -207,5 +207,5 @@ jobs:
         run: |
           echo "### CI artifacts" >> "$GITHUB_STEP_SUMMARY"
           echo "[Package and checksum]($PACKAGE_URL) | [Manifest]($MANIFEST_URL)" >> "$GITHUB_STEP_SUMMARY"
-          echo "Source: [${SOURCE_SHA}](https://github.com/RyGT-Team/RyGTS/commit/${SOURCE_SHA})" >> "$GITHUB_STEP_SUMMARY"
+          echo "Source: [${SOURCE_SHA}](https://github.com/RyGT-Team/RyGT/commit/${SOURCE_SHA})" >> "$GITHUB_STEP_SUMMARY"
           echo "Renderer: [${RENDERER_SHA}](https://github.com/RyGT-Team/shadGT/commit/${RENDERER_SHA})" >> "$GITHUB_STEP_SUMMARY"

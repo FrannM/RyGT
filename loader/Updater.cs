@@ -75,12 +75,12 @@ namespace RyGT
     static class Updater
     {
         // ---- Where the releases are.
-        const string Repository = "RyGT-Team/RyGTS", Workflow = "ci-package-release.yml", Branch = "development";
-        const string ArtifactPrefix = "ci-", NightlyPrefix = "RyGTS-ci-";
+        const string Repository = "RyGT-Team/RyGT", Workflow = "ci-package-release.yml", Branch = "development";
+        const string ArtifactPrefix = "ci-", NightlyPrefix = "RyGT-ci-"; // FIX-RT-015: RyGTS-ci- before
         // FIX-GTS-286: the release tags ("gt-sport-2026-11-15") and package zips ("GTSport-Ryty-shadGT-2026-11-15.zip")
         // as they are published.
-        static readonly string[] TagPrefixes = { "gt-sport-", "gts-" }, PackagePrefixes = { "GTSport-", "RyGTS-" };
-        const string Product = "RyGTS";
+        static readonly string[] TagPrefixes = { "gt-sport-", "gts-" }, PackagePrefixes = { "GTSport-", "RyGTS-", "RyGT-" };
+        const string Product = "RyGT"; // FIX-RT-015: packages are RyGT-<version> (RyGTS-<version> before)
         // FEAT-GTS-291: the launcher started after an update (RyGTS.exe and ryGT7's RyGT7.exe before it).
         public const string LauncherExe = "RyGTLauncher.exe";
         // Either game, in whichever folder is updated: its process, its settings and its converted game.
@@ -128,7 +128,7 @@ namespace RyGT
                         return (string)version;
                 }
                 if (identity.StartsWith("commit:")) return "ci-" + identity.Substring(7, 8);
-                var match = Regex.Match(identity, "^" + Regex.Escape(Product) + @"-(.+?)(-prerelease)?$");
+                var match = Regex.Match(identity, "^" + Regex.Escape(Product) + @"S?-(.+?)(-prerelease)?$"); // RyGT- or the older RyGTS-
                 return match.Success ? match.Groups[1].Value : null;
             }
             catch { return null; }

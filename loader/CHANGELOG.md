@@ -6,6 +6,14 @@ The version lives in `loader/Version.cs`. To release a change, bump
 `LauncherVersion.Value` there and add a section here with the same number;
 CI fails when the two disagree.
 
+## 0.3.8 - 2026-11-20
+
+* FIX-RT-015: the packages are RyGT now: nightlies are RyGT-ci-<commit>.zip (RyGTS-ci- before) and the CI
+  workflows are "RyGT Release/Diagnostics development build". The updater looks for RyGT-ci- nightlies and reads
+  both RyGT- and the older RyGTS- package names, so installed folders still show their version.
+  The repository is RyGT-Team/RyGT now (RyGT-Team/RyGTS before): the updater and the CI workflows use the
+  new name (the workflows compared github.repository with the old one, so a push built development's tip).
+
 ## 0.3.7 - 2026-11-20
 
 * FIX-RT-008: GT7 showed GT Sport's red picture in a shared folder: launcher\background.png (which the
