@@ -1,4 +1,4 @@
-# RyGTS
+# RyGT
 
 <h1 align="center">
   <sub>Gran Turismo Sport and Gran Turismo 7 on PC</sub>
