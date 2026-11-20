@@ -6,6 +6,12 @@ The version lives in `loader/Version.cs`. To release a change, bump
 `LauncherVersion.Value` there and add a section here with the same number;
 CI fails when the two disagree.
 
+## 0.3.11 - 2026-11-20
+
+* FIX-RT-016: GT7 shows its blue picture in a fresh RyGT package too. launcherackground.png and logo.png
+  (GT Sport's, which the package ships) went to both games while the folder had no game exe yet, before
+  Set up; they are GT Sport's now unless the folder holds only GT7.exe (a ryGT7 release).
+
 ## 0.3.10 - 2026-11-20
 
 * FIX-GTS-526: GT Sport's Graphics page says "PS4 Pro Mode", no longer "PS4 Pro Mode (BROKEN)".
