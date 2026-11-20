@@ -963,7 +963,7 @@ namespace RyGT
                 Log("Applied the " + OfflinePatch.GroupName + " patch to GT7.exe" + (removed > 0 ? " (" + removed + " overlapping relocations disabled)." : "."));
             }
             GameExe.PrepareGt7(convertedExe);
-            Log("Prepared GT7.exe with the ryGT7 icon.");
+            Log("Prepared GT7.exe with the game's icon.");
 
             // 3. app0: only the converted modules. The game reads its own files from the update, then the
             //    base game folder (FEAT-GTS-251; see core/libs/prx/libc/include/AppOverlay.hpp).
