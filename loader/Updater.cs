@@ -88,7 +88,10 @@ namespace RyGT
         // FEAT-GTS-291: each game's settings are <serial>.RyGT.ini now; the old names stay protected for
         // folders not moved yet.
         static readonly string[] ProtectedFiles = { "CUSA03220.RyGT.ini", "CUSA24769.RyGT.ini", "RyGT.ini", "RyGT7.ini", "RyGT-Launcher.ini", "GTSport.exe", "GTSport.exe.converted",
-                                                    "GT7.exe", "GT7.exe.converted", "GT7.registry.json", "setup-out.txt" };
+                                                    "GT7.exe", "GT7.exe.converted", "GT7.registry.json", "setup-out.txt",
+                                                    // FEAT-RT-006: RyGTS packages carry GT7's server; its shadNet settings hold
+                                                    // the keys the Online page made for this player (EnsureShadNetKeys).
+                                                    "server\\shadnet\\shadnet.cfg" };
         // ----
 
         public const string Stable = "stable", Prerelease = "prerelease", Nightly = "nightly";

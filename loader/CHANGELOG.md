@@ -6,6 +6,13 @@ The version lives in `loader/Version.cs`. To release a change, bump
 `LauncherVersion.Value` there and add a section here with the same number;
 CI fails when the two disagree.
 
+## 0.3.5 - 2026-11-19
+
+* FEAT-RT-006: RyGTS packages carry GT7's files too (libs\libSceTextToSpeech.prx, patches\CUSA24769.xml, and
+  the server: RyGTServer.exe, libzstd.dll, shadNet and its data), so one RyGTS folder runs both games and
+  GT7 updates with it. An update never replaces server\shadnet\shadnet.cfg, which holds the keys the
+  Online page made. The Game page's GT7 hint names the update as the way to get them.
+
 ## 0.3.4 - 2026-11-19
 
 * FEAT-RT-005: GT7 no longer has a folder of its own. Both games use the launcher's folder, since every

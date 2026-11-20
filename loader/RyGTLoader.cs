@@ -2514,7 +2514,7 @@ namespace RyGT
             string former = game == GameKind.GT7 ? state.FormerGt7Root() : null;
             if (!ready)
                 files.Controls.Add(Hint(game == GameKind.GT7
-                    ? "GT7 uses this launcher's folder, like GT Sport. It doesn't have GT7's files yet (libs\\libSceTextToSpeech.prx, patches\\CUSA24769.xml): copy them in from the ryGT7 release."
+                    ? "GT7 uses this launcher's folder, like GT Sport. It doesn't have GT7's files yet (libs\\libSceTextToSpeech.prx, patches\\CUSA24769.xml): update it to a RyGTS build that carries them (GT Sport's Settings > About > Updates), or copy them in from the ryGT7 release."
                     : "The launcher's folder can't be used (it must hold converter, libs and tools)."));
             else if (game == GameKind.GTSport)
                 files.Controls.Add(Hint("Without PS4 dumped fonts, some in-game UI fonts may not draw or appear correctly."));
