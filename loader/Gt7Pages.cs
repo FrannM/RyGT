@@ -1338,6 +1338,9 @@ namespace RyGT
                         start.EnvironmentVariables["RYGT_LOG_DIRECTORY"] = logDirectory;
                         // GAME-004: the renderer and the runtime take the game from the launcher.
                         start.EnvironmentVariables["SHADGT_GAME"] = "gt7";
+                        // FIX-RT-012: patches\scripts holds GT Sport's replacement scripts (GTS-005: GALLERY.ADC,
+                        // UI_KIT.ADC...) in a folder both games share; the renderer would serve them to GT7 too.
+                        start.EnvironmentVariables["SHADGT_SCRIPTS"] = "0";
                         start.EnvironmentVariables["RYTY_INTEROP_BASE"] = "8000000000";
                         // PERF-161: GT7's per-frame memory (0x200000000-0x208000000), which the CPU rewrites
                         // every frame and a few compute passes write too, stays in guest memory: kept in a

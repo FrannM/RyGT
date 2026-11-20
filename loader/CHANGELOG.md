@@ -20,6 +20,8 @@ CI fails when the two disagree.
   About, as GT Sport's does.
 * FIX-RT-011: GT7's home caption and version line name its update ("UPDATE 1.71", "GT7 1.71": the
   VERSION in the game's param.sfo) instead of "PS4".
+* FIX-RT-012: GT7 starts with SHADGT_SCRIPTS=0: patches\scripts holds GT Sport's replacement scripts
+  (GALLERY.ADC, UI_KIT.ADC...), and in a shared folder the renderer served them to GT7 too.
 
 ## 0.3.6 - 2026-11-20
 
