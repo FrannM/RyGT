@@ -6,6 +6,13 @@ The version lives in `loader/Version.cs`. To release a change, bump
 `LauncherVersion.Value` there and add a section here with the same number;
 CI fails when the two disagree.
 
+## 0.3.3 - 2026-11-19
+
+* FIX-GTS-271 (from rygt7 7dbe4e2, which came after the merged 6178d0b): GT7's online-service keys
+  are no longer in RyGTServer or tools/vegas_decode.py. RyGTServer reads them from your own GT7
+  eboot.bin, which the Online page passes when it starts hosting; without it, GT7's online service
+  stays off. GT Sport is not affected.
+
 ## 0.3.2 - 2026-11-18
 
 Brings 0.2.3 and 0.2.4 from development (the merge into FEAT-GTS-291's branch):
