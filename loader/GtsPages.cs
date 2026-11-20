@@ -1,5 +1,5 @@
 ﻿// FEAT-GTS-290: what only Gran Turismo Sport has in the unified launcher: its Display, Graphics and
-// Controls pages, its Set up (offline livery scripts, shader packs), its updates (GitHub RyGT-Team/RyGTS)
+// Controls pages, its Set up (offline livery scripts, shader packs), its updates (GitHub RyGT-Team/RyGT)
 // and how it starts GTSport.exe, all as RyGTS's own launcher had them.
 // SPDX-License-Identifier: GPL-2.0-only
 

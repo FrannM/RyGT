@@ -255,9 +255,9 @@ class PackageTests(unittest.TestCase):
                     pkg.package()
                 manifest = json.loads(Path('dist/CI-PACKAGES.json').read_text())
                 self.assertEqual([variant['channel'] for variant in manifest['variants']], [selected])
-                self.assertTrue((Path('dist') / f'RyGTS-{selected}-{SHA[:8]}.zip').exists())
+                self.assertTrue((Path('dist') / f'RyGT-{selected}-{SHA[:8]}.zip').exists())
                 other = 'debug-ci' if selected == 'ci' else 'ci'
-                self.assertFalse((Path('dist') / f'RyGTS-{other}-{SHA[:8]}.zip').exists())
+                self.assertFalse((Path('dist') / f'RyGT-{other}-{SHA[:8]}.zip').exists())
 
     def test_missing_or_wrong_symbols_and_source_revision_rejected(self):
         for mutation in ('identity', 'missing', 'commit'):

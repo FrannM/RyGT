@@ -24,14 +24,14 @@ class GitHubSourceTests(unittest.TestCase):
         for folder in (root / '.github/workflows', HERE / 'github-registry'):
             for channel in ('release', 'debug'):
                 workflow = (folder / ('ci-package-' + channel + '.yml')).read_text()
-                self.assertEqual(workflow.count('git remote add origin https://github.com/RyGT-Team/RyGTS.git'), 3)
+                self.assertEqual(workflow.count('git remote add origin https://github.com/RyGT-Team/RyGT.git'), 3)
                 self.assertNotIn('gitlab.com/rygt-team/RyGTS.git', workflow)
 
     def test_exact_revision_waits_for_github(self):
         missing=urllib.error.HTTPError('url',404,'Not Found',{},None)
         response=io.BytesIO(json.dumps({'sha':SHA}).encode())
         with patch.object(source.urllib.request,'urlopen',side_effect=[missing,response]) as get, patch.object(source.time,'sleep') as sleep:
-            self.assertEqual(source.wait_for_commit('https://api.github.com/repos/RyGT-Team/RyGTS',SHA,attempts=2),SHA)
+            self.assertEqual(source.wait_for_commit('https://api.github.com/repos/RyGT-Team/RyGT',SHA,attempts=2),SHA)
         self.assertEqual(get.call_count,2)
         self.assertTrue(get.call_args.args[0].endswith('/commits/'+SHA))
         sleep.assert_called_once_with(5)
@@ -57,12 +57,12 @@ class GitHubSourceTests(unittest.TestCase):
 
 class GithubRequestTest(unittest.TestCase):
     def test_token_only_for_the_api(self):
-        api = 'https://api.github.com/repos/RyGT-Team/RyGTS/commits/development'
+        api = 'https://api.github.com/repos/RyGT-Team/RyGT/commits/development'
         with patch.dict(source.os.environ, {'GITHUB_TOKEN': 'abc'}):
             request = source.github_request(api)
             self.assertEqual(request.full_url, api)
             self.assertEqual(request.get_header('Authorization'), 'Bearer abc')
-            raw = 'https://raw.githubusercontent.com/RyGT-Team/RyGTS/x/renderer/source.json'
+            raw = 'https://raw.githubusercontent.com/RyGT-Team/RyGT/x/renderer/source.json'
             self.assertEqual(source.github_request(raw), raw)
         with patch.dict(source.os.environ, {}, clear=True):
             self.assertEqual(source.github_request(api), api)
