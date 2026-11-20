@@ -3002,14 +3002,15 @@ namespace RyGT
         }
 
         /// FIX-RT-008: the folders holding the selected game's launcher pictures, first its own one,
-        /// launcher\<serial>, then launcher itself when those pictures are this game's. A shared folder's
-        /// launcher\background.png and logo.png are GT Sport's (the RyGTS package ships them) while
-        /// GTSport.exe is there; in a folder with only GT7.exe (a ryGT7 release) they are GT7's.
+        /// launcher\<serial>, then launcher itself when those pictures are this game's. launcher\background.png
+        /// and logo.png are GT Sport's (the RyGT package ships GT Sport's), except in a folder with only
+        /// GT7.exe (a ryGT7 release). FIX-RT-016: also before Set up, when the package's folder has no
+        /// game exe yet (FIX-RT-008 gave them to GT7 there, so its home view stayed red).
         List<string> PictureFolders()
         {
             var folders = new List<string> { Path.Combine(root, "launcher", info.TitleId) };
             bool gts = File.Exists(Path.Combine(root, GameInfo.GTSport.ExeName)), gt7 = File.Exists(Path.Combine(root, GameInfo.GT7.ExeName));
-            if (gts ? target == GameKind.GTSport : !gt7 || target == GameKind.GT7) folders.Add(Path.Combine(root, "launcher"));
+            if (gt7 && !gts ? target == GameKind.GT7 : target == GameKind.GTSport) folders.Add(Path.Combine(root, "launcher"));
             return folders;
         }
 
