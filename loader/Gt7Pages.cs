@@ -962,7 +962,7 @@ namespace RyGT
                 Directory.CreateDirectory(Path.Combine(info.OwnFolder(root, "data"), "gt7offline"));
                 Log("Applied the " + OfflinePatch.GroupName + " patch to GT7.exe" + (removed > 0 ? " (" + removed + " overlapping relocations disabled)." : "."));
             }
-            GameExe.PrepareGt7(convertedExe);
+            GameExe.PrepareGt7(convertedExe, layout.Get("sce_sys\\icon0.png"));
             Log("Prepared GT7.exe with the game's icon.");
 
             // 3. app0: only the converted modules. The game reads its own files from the update, then the

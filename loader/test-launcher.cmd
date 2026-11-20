@@ -20,12 +20,12 @@ set SOURCES="%~dp0RenderResolution.cs" "%~dp0VulkanDevices.cs" "%~dp0Version.cs"
 call "%~dp0build.cmd" "%OUT%"
 if errorlevel 1 exit /b 1
 
-"%CSC%" /nologo /target:exe /main:RyGT.UnifiedLauncherTests /resource:"%~dp0ryGT.ico",ryGT.ico /resource:"%~dp0ryGT7.ico",ryGT7.ico /out:"%OUT%\UnifiedLauncherTests.exe" %REFS% %SOURCES% "%~dp0UnifiedLauncherTests.cs"
+"%CSC%" /nologo /target:exe /main:RyGT.UnifiedLauncherTests /resource:"%~dp0ryGT.ico",ryGT.ico /out:"%OUT%\UnifiedLauncherTests.exe" %REFS% %SOURCES% "%~dp0UnifiedLauncherTests.cs"
 if errorlevel 1 exit /b 1
 "%OUT%\UnifiedLauncherTests.exe"
 if errorlevel 1 exit /b 1
 
-"%CSC%" /nologo /target:exe /main:RyGT.GT7SetupTests /resource:"%~dp0ryGT.ico",ryGT.ico /resource:"%~dp0ryGT7.ico",ryGT7.ico /out:"%OUT%\GT7SetupTests.exe" %REFS% %SOURCES% "%~dp0GT7SetupTests.cs"
+"%CSC%" /nologo /target:exe /main:RyGT.GT7SetupTests /resource:"%~dp0ryGT.ico",ryGT.ico /out:"%OUT%\GT7SetupTests.exe" %REFS% %SOURCES% "%~dp0GT7SetupTests.cs"
 if errorlevel 1 exit /b 1
 "%OUT%\GT7SetupTests.exe" %2 %3 %4 %5 %6 %7
 if errorlevel 1 exit /b 1
