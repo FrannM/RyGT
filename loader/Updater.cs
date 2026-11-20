@@ -75,7 +75,7 @@ namespace RyGT
     static class Updater
     {
         // ---- Where the releases are.
-        const string Repository = "RyGT-Team/RyGTS", Workflow = "ci-package-release.yml", Branch = "development";
+        const string Repository = "RyGT-Team/RyGT", Workflow = "ci-package-release.yml", Branch = "development";
         const string ArtifactPrefix = "ci-", NightlyPrefix = "RyGT-ci-"; // FIX-RT-015: RyGTS-ci- before
         // FIX-GTS-286: the release tags ("gt-sport-2026-11-15") and package zips ("GTSport-Ryty-shadGT-2026-11-15.zip")
         // as they are published.

@@ -47,7 +47,7 @@ and says where each feature lives now. FEAT-GTS-291 (0.3.1) gave it its own name
   running exe, a game or another file. It is best effort: what happened goes to the first setup log written.
   After a roll back to a release from before RyGTLauncher.exe, `Updater.Restart` puts the old launcher back
   (`OldLaunchers.PutBack`) and starts it.
-- **One updater (FEAT-GTS-291).** `Updater.cs` updates either game's folder the same way: RyGT-Team/RyGTS
+- **One updater (FEAT-GTS-291).** `Updater.cs` updates either game's folder the same way: RyGT-Team/RyGT
   releases on GitHub with the Stable, Prerelease and Nightly channels, the Changelog window and roll back,
   in one Settings > About > Updates section. It updates the selected game's folder, only from a package that
   has a file named after that game's title ID (GT Sport's `user\custom_configs\CUSA03220.json`, GT7's
@@ -65,7 +65,7 @@ and says where each feature lives now. FEAT-GTS-291 (0.3.1) gave it its own name
 | `GtsPages.cs` | GT Sport only: Display/Graphics/Controls pages, Set up, launch (from RyGTS's RyGTLoader.cs) |
 | `Gt7Pages.cs` | GT7 only: Display/Graphics/Controls pages, Set up, launch (from ryGT7's RyGTLoader.cs) |
 | `GT7Setup.cs`, `Bindings.cs`, `ControlsPage.cs`, `Wheel.cs`, `DlssDownload.cs`, `Online.cs` | from ryGT7, unchanged except `Online.cs` calling `PlayGt7` |
-| `Updater.cs` | the one updater for both games' folders (GitHub RyGT-Team/RyGTS); ryGT7's GitLab `Gt7Updater.cs` was removed in FEAT-GTS-291 |
+| `Updater.cs` | the one updater for both games' folders (GitHub RyGT-Team/RyGT); ryGT7's GitLab `Gt7Updater.cs` was removed in FEAT-GTS-291 |
 | `UnifiedLauncherTests.cs`, `GT7SetupTests.cs`, `test-launcher.cmd` | the checks (see below) |
 
 ## Feature comparison
@@ -84,7 +84,7 @@ and says where each feature lives now. FEAT-GTS-291 (0.3.1) gave it its own name
 | Controls | windows: Controller ports, Button bindings (ControlsForm), Steering wheel (WheelForm), HD rumble & adaptive triggers (FeelForm) | one drawn page (ControlsPage: pad, keyboard, wheel tabs) opening Controller ports | **game-only**; Controller ports (PortsForm) shared; both write `user\input_config\default.ini`, `ryty-input.ini`, `ryty-wheel.ini` in the game's folder |
 | Online | none | Account and Online pages, RyGTServer + shadNet hosting, invite codes, firewall helper | **GT7 only** |
 | Ports | PortsForm (2 players, names) | the same form (made public static `Apply`) | **shared** |
-| Updates | GitHub RyGT-Team/RyGTS: Stable/Prerelease/Nightly channels, Changelog dialog, roll back (About) | GitLab rygt-team/rygt7 releases, SHA-256 + manifest, roll back (Display page) | **shared** (FEAT-GTS-291): RyGTS's updater for both games under **About > Updates**, for the selected game's folder; it restarts RyGTLauncher.exe |
+| Updates | GitHub RyGT-Team/RyGT: Stable/Prerelease/Nightly channels, Changelog dialog, roll back (About) | GitLab rygt-team/rygt7 releases, SHA-256 + manifest, roll back (Display page) | **shared** (FEAT-GTS-291): RyGTS's updater for both games under **About > Updates**, for the selected game's folder; it restarts RyGTLauncher.exe |
 | Logging | stdout level, logs folder rotation | the same | **shared** |
 | Advanced page | FEAT-GTS-437..275: switch walker (SHADGT_/RYGT_/SHARED_), descriptions, profiles, renames | an older copy (RYGT_/SHADGT_, no profiles) | **shared**: RyGTS's page for both, with each game's launcher-managed variables |
 | Obsolete settings prompt | FEAT-GTS-469/275 | none | GT Sport only |

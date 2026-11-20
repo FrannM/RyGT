@@ -48,7 +48,7 @@ class RendererRevisionTests(IsolatedWorkflowFiles):
     def test_pinned_revision_uses_source_policy_only(self):
         with patch.object(registry.urllib.request, 'urlopen', return_value=response(policy(RENDERER))) as request:
             self.assertEqual(registry.renderer_revision(SOURCE), RENDERER)
-        request.assert_called_once_with('https://raw.githubusercontent.com/RyGT-Team/RyGTS/' + SOURCE + '/renderer/source.json', timeout=60)
+        request.assert_called_once_with('https://raw.githubusercontent.com/RyGT-Team/RyGT/' + SOURCE + '/renderer/source.json', timeout=60)
 
     def test_head_resolves_official_branch_once(self):
         with patch.object(registry.urllib.request, 'urlopen', side_effect=[response(policy()), response({'sha': RENDERER})]) as request:
@@ -87,7 +87,7 @@ class ResolveTests(IsolatedWorkflowFiles):
             requests.append(url)
             if url == registry.SOURCE_API + '/commits/' + SOURCE:
                 return response({'sha': SOURCE})
-            if url == 'https://raw.githubusercontent.com/RyGT-Team/RyGTS/' + SOURCE + '/renderer/source.json':
+            if url == 'https://raw.githubusercontent.com/RyGT-Team/RyGT/' + SOURCE + '/renderer/source.json':
                 return response(policy())
             if url == registry.RENDERER_API + '/commits/' + RENDERER:
                 return response({'sha': RENDERER})

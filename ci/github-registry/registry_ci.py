@@ -11,7 +11,7 @@ import urllib.error
 import urllib.request
 import zipfile
 
-SOURCE_API = 'https://api.github.com/repos/RyGT-Team/RyGTS'
+SOURCE_API = 'https://api.github.com/repos/RyGT-Team/RyGT'
 RENDERER_API = 'https://api.github.com/repos/RyGT-Team/shadGT'
 CHANNELS = ('ci', 'debug-ci')
 
@@ -32,7 +32,7 @@ def version(commit, renderer):
 
 
 def renderer_revision(commit):
-    with urllib.request.urlopen('https://raw.githubusercontent.com/RyGT-Team/RyGTS/' + commit + '/renderer/source.json', timeout=60) as response:
+    with urllib.request.urlopen('https://raw.githubusercontent.com/RyGT-Team/RyGT/' + commit + '/renderer/source.json', timeout=60) as response:
         policy = json.load(response)
     if (not isinstance(policy, dict) or not isinstance(policy.get('repository'), str) or
             policy['repository'].lower() != 'https://github.com/rygt-team/shadgt.git' or
@@ -71,7 +71,7 @@ def resolve(channel=None):
     if os.environ.get('GITHUB_STEP_SUMMARY'):
         with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as output:
             output.write('### Resolved build sources\n\n'
-                         f'- Source: [`{commit}`](https://github.com/RyGT-Team/RyGTS/commit/{commit})\n'
+                         f'- Source: [`{commit}`](https://github.com/RyGT-Team/RyGT/commit/{commit})\n'
                          f'- Renderer: [`{renderer}`](https://github.com/RyGT-Team/shadGT/commit/{renderer})\n'
                          f'- Channels: {", ".join(channels)}\n'
                          f'- Build needed: `{needed}`\n\n')
