@@ -6,13 +6,74 @@ The version lives in `loader/Version.cs`. To release a change, bump
 `LauncherVersion.Value` there and add a section here with the same number;
 CI fails when the two disagree.
 
-## 0.3.2 - 2026-11-16
+## 0.3.8 - 2026-11-20
 
 * FIX-GTS-491: After a GPU device loss, GT Sport and GT7 are no longer started again by the launcher.
   The interrupted session could not be resumed anyway; the restart hid the crash from the player
   and ran a second session under the first one's launch. The game's setup log
   (`logs\<serial>\setup.log`) now says when the device was lost and which log holds that session
   (its `stdout.log`, renamed `stdout.log.<UTC time>` at the next start).
+
+## 0.3.7 - 2026-11-20
+
+* FIX-RT-008: GT7 showed GT Sport's red picture in a shared folder: launcher\background.png (which the
+  RyGTS package ships) and launcher\logo.png were used for both games. They are GT Sport's now while
+  GTSport.exe is in the folder (a ryGT7-only folder keeps them for GT7); each game's own pictures go in
+  launcher\<serial>, and GT7 otherwise shows its built-in blue picture again.
+* FIX-RT-009: GT7's About page has GT Sport's notice too, with "Copyright © 2026 RyGT-Team."
+* FIX-RT-010: one name and one icon for both games. The home caption no longer ends in "RYGTS FOR WINDOWS"
+  or "RYGT7 FOR WINDOWS"; the version line, About, sidebar, folder rows, update notices, the update and
+  roll back dialogs, the Changelog title and nightlies ("RyGT nightly") say RyGT. The window keeps the
+  RyGT icon for GT7 too (GT7's own icon stays beside the player's ID). GT7's sidebar has Advanced above
+  About, as GT Sport's does.
+* FIX-RT-011: GT7's home caption and version line name its update ("UPDATE 1.71", "GT7 1.71": the
+  VERSION in the game's param.sfo) instead of "PS4".
+* FIX-RT-012: GT7 starts with SHADGT_SCRIPTS=0: patches\scripts holds GT Sport's replacement scripts
+  (GALLERY.ADC, UI_KIT.ADC...), and in a shared folder the renderer served them to GT7 too.
+
+## 0.3.6 - 2026-11-20
+
+* FIX-RT-007: `--game` (snapshots and `--setup --game`) used the GT7 folder an older launcher saved in
+  RyGT-Launcher.ini, so `--setup --game gt7` would have set GT7 up there instead of in the launcher's folder.
+  It now uses the launcher's folder like the window does. And GT7 no longer reads GT Sport's
+  user\custom_configs\CUSA03220.json when its own CUSA24769.json is missing and GTSport.exe shares the folder
+  (the runtime's GameSerial.hpp; only a GT7 folder from before GAME-004 falls back to it).
+  The Game page names a former GT7 folder only when it still holds GT7's files or saves.
+
+## 0.3.5 - 2026-11-19
+
+* FEAT-RT-006: RyGTS packages carry GT7's files too (libs\libSceTextToSpeech.prx, patches\CUSA24769.xml, and
+  the server: RyGTServer.exe, libzstd.dll, shadNet and its data), so one RyGTS folder runs both games and
+  GT7 updates with it. An update never replaces server\shadnet\shadnet.cfg, which holds the keys the
+  Online page made. The Game page's GT7 hint names the update as the way to get them.
+
+## 0.3.4 - 2026-11-19
+
+* FEAT-RT-005: GT7 no longer has a folder of its own. Both games use the launcher's folder, since every
+  file either game writes there follows its serial; the Game page's GT7 folder field is gone. GT7 is
+  ready once that folder has GT7's files (libs\libSceTextToSpeech.prx, patches\CUSA24769.xml). A GT7
+  folder an older launcher saved is no longer used; the Game page names it, so its saves and settings
+  can be copied over.
+
+## 0.3.3 - 2026-11-19
+
+* FIX-GTS-271 (from rygt7 7dbe4e2, which came after the merged 6178d0b): GT7's online-service keys
+  are no longer in RyGTServer or tools/vegas_decode.py. RyGTServer reads them from your own GT7
+  eboot.bin, which the Online page passes when it starts hosting; without it, GT7's online service
+  stays off. GT Sport is not affected.
+
+## 0.3.2 - 2026-11-18
+
+Brings 0.2.3 and 0.2.4 from development (the merge into FEAT-GTS-291's branch):
+
+* FIX-GTS-294: Set up and Play no longer make the offline livery and decal scripts from the game's
+  files. Reading them needed the game volumes' decryption keys, so adcpatch's all and extract
+  commands and its GTToolsSharp dependency are removed too. Scripts already in patches\scripts
+  are still used; adcpatch can still patch scripts you supply yourself.
+* FIX-GTS-293: Set up and Play no longer copy shader programs out of the game's files. That step
+  needed the game volumes' decryption keys, so adcpatch's shader commands (shaderindex,
+  shadercodes, manifestpack, manifestprep, shaderpack, shaderprep) are removed too. Shaders now
+  compile the first time they are needed, and the shader folder keeps them for later starts.
 
 ## 0.3.1 - 2026-11-15
 

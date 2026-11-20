@@ -233,10 +233,19 @@ public:
         const auto offset = view->second.offset;
         SYSTEM_INFO system{};
         GetSystemInfo(&system);
+        // FIX-RT-001: the runs of consecutive offsets of one section that the range is made of.
+        std::vector<AliasRun> runs;
         for (std::size_t done = 0; done < bytes; done += pageBytes, ++view) {
-            if (view == views.end() || view->first != address + done || view->second.offset != offset + done) throw refuse("the range is not one contiguous run of views of a section");
-            if (view->second.section != section && !sameSection(view->second.section->handle, section->handle)) throw refuse("the range spans several sections");
+            if (view == views.end() || view->first != address + done) throw refuse("the range is not all shared views");
+            const HANDLE handle = view->second.section->handle;
+            if (!runs.empty() && view->second.offset == runs.back().offset + runs.back().bytes &&
+                (handle == runs.back().section || sameSection(handle, runs.back().section))) {
+                runs.back().bytes += pageBytes;
+            } else {
+                runs.push_back(AliasRun{address + done, handle, view->second.offset, pageBytes});
+            }
         }
+        if (runs.size() > 1) return mapStitchedAlias(address, bytes, runs, system.dwAllocationGranularity);
         const auto lead = offset % system.dwAllocationGranularity;
         void* alias = MappingDiagnostics::Measure(MappingDiagnostics::MapView, [&] { return map(section->handle, GetCurrentProcess(), nullptr, offset - lead, lead + bytes, 0, PAGE_READWRITE, nullptr, 0); });
         if (alias == nullptr) {
@@ -249,6 +258,16 @@ public:
 
     void UnmapAlias(void* alias) {
         if (alias == nullptr) return;
+        {   // FIX-RT-001: a stitched alias is one view per run.
+            Lock lock(*this);
+            if (const auto stitched = stitched_aliases.find(reinterpret_cast<std::uintptr_t>(alias)); stitched != stitched_aliases.end()) {
+                for (const auto piece : stitched->second) {
+                    if (!MappingDiagnostics::Measure(MappingDiagnostics::UnmapView, [&] { return unmap(GetCurrentProcess(), reinterpret_cast<void*>(piece), 0); })) fail("unmap a piece of a stitched alias");
+                }
+                stitched_aliases.erase(stitched);
+                return;
+            }
+        }
         SYSTEM_INFO system{};
         GetSystemInfo(&system);
         const auto base = reinterpret_cast<std::uintptr_t>(alias) & ~(static_cast<std::uintptr_t>(system.dwAllocationGranularity) - 1);
@@ -335,6 +354,54 @@ private:
         Section& operator=(const Section&) = delete;
         ~Section() { CloseHandle(handle); }
     };
+    // FIX-RT-001: guest memory that is one run of consecutive offsets of one section.
+    struct AliasRun {
+        std::uintptr_t guest;
+        HANDLE section;
+        std::uint64_t offset;
+        std::size_t bytes;
+    };
+
+    // FIX-RT-001: an alias of guest memory made of several runs of sections: one placeholder,
+    // filled run by run. GT7 maps its culling memory 2 MB at a time from different places of
+    // direct memory (0x1020200000 and 0x1020400000), so one MapViewOfFile3 cannot mirror a buffer
+    // across 0x1020400000. The renderer then imported each piece apart, and that buffer's writes
+    // went to a video-memory copy the rest of GT7's culling did not read: scenery, the ground or
+    // shadows missing for single frames until a restart. Caller holds the lock. Each run must
+    // start and end on the allocation granularity (64 KB).
+    void* mapStitchedAlias(std::uintptr_t address, std::size_t bytes, const std::vector<AliasRun>& runs, DWORD granularity) {
+        const auto refuse = [&](const char* reason) {
+            char text[192];
+            std::snprintf(text, sizeof(text), "stitched alias of shared guest memory 0x%llx+0x%llx (%zu runs): %s",
+                          static_cast<unsigned long long>(address), static_cast<unsigned long long>(bytes), runs.size(), reason);
+            return std::runtime_error(text);
+        };
+        for (const auto& run : runs) {
+            if (run.offset % granularity != 0 || run.bytes % granularity != 0) throw refuse("a run is not on the allocation granularity");
+        }
+        auto* base = static_cast<std::uint8_t*>(MappingDiagnostics::Measure(MappingDiagnostics::Placeholder, [&] {
+            return allocate(GetCurrentProcess(), nullptr, bytes, MEM_RESERVE | MEM_RESERVE_PLACEHOLDER, PAGE_NOACCESS, nullptr, 0); }));
+        if (base == nullptr) throw refuse("no placeholder");
+        std::vector<std::uintptr_t> pieces;
+        std::size_t at = 0;
+        for (const auto& run : runs) {
+            void* slot = base + at;
+            const bool last = at + run.bytes == bytes;
+            bool ok = last || VirtualFree(slot, run.bytes, MEM_RELEASE | MEM_PRESERVE_PLACEHOLDER);
+            ok = ok && MappingDiagnostics::Measure(MappingDiagnostics::MapView, [&] {
+                return map(run.section, GetCurrentProcess(), slot, run.offset, run.bytes, MEM_REPLACE_PLACEHOLDER, PAGE_READWRITE, nullptr, 0); }) != nullptr;
+            if (!ok) {
+                for (const auto piece : pieces) unmap(GetCurrentProcess(), reinterpret_cast<void*>(piece), 0);
+                VirtualFree(base + at, 0, MEM_RELEASE); // the placeholder left from this run on
+                throw refuse("a run could not be mapped into the placeholder");
+            }
+            pieces.push_back(reinterpret_cast<std::uintptr_t>(slot));
+            at += run.bytes;
+        }
+        stitched_aliases.emplace(reinterpret_cast<std::uintptr_t>(base), std::move(pieces));
+        return base;
+    }
+
     struct View {
         std::shared_ptr<SharedPage> page;
         DWORD protection;
@@ -800,6 +867,7 @@ private:
     std::size_t allocationGranularity = 0;
     std::map<std::uintptr_t, std::uintptr_t> cleanRanges;
     std::map<std::uintptr_t, View> views;
+    std::map<std::uintptr_t, std::vector<std::uintptr_t>> stitched_aliases; // FIX-RT-001
     std::map<std::pair<std::uintptr_t, std::uint64_t>, std::weak_ptr<SharedPage>> physical;
     std::mutex mutex;
     std::atomic<DWORD> owner{0};

@@ -26,32 +26,47 @@ namespace RyGT
 
         static void StateChecks(string root)
         {
-            // A RyGTS folder: GT Sport is the default and its folder is the launcher's; GT7 has none yet.
+            // A RyGTS folder: GT Sport is the default. FEAT-RT-005: both games' folder is the launcher's,
+            // and GT7 is ready there once GT7's files are in it.
             string gts = Folder(root, "RyGTS");
             var state = new LauncherState(gts);
             Check(state.Last == GameKind.GTSport, "A RyGTS folder starts with GT Sport");
-            Check(state.RootOf(GameKind.GTSport) == gts && state.RootOf(GameKind.GT7) == "", "GT Sport's folder is the launcher's, GT7 has none");
-            Check(state.Ready(GameKind.GTSport) && !state.Ready(GameKind.GT7), "Only GT Sport is ready");
+            Check(state.RootOf(GameKind.GTSport) == gts && state.RootOf(GameKind.GT7) == gts, "Both games' folder is the launcher's");
+            Check(state.Ready(GameKind.GTSport) && !state.Ready(GameKind.GT7), "Only GT Sport is ready without GT7's files");
+            Check(state.FormerGt7Root() == null, "No former GT7 folder");
             Check(!File.Exists(Path.Combine(gts, LauncherState.FileName)), "Reading writes nothing");
-            // A ryGT7 folder picked for GT7 and kept with the last game; other lines survive.
+            Directory.CreateDirectory(Path.Combine(gts, "libs"));
+            File.WriteAllText(Path.Combine(gts, "libs", "libSceTextToSpeech.prx"), "");
+            Check(new LauncherState(gts).Ready(GameKind.GT7), "GT7 is ready once its stubs are in the launcher's folder");
+            File.Delete(Path.Combine(gts, "libs", "libSceTextToSpeech.prx"));
+            // A GT7 folder an older launcher saved (gt7_root): ignored, shown as the former folder; other lines survive.
             string gt7 = Folder(root, "ryGT7");
             File.WriteAllText(Path.Combine(gt7, "RyGT7.ini"), "game=\n");
-            File.WriteAllText(Path.Combine(gts, LauncherState.FileName), "# a comment\nfuture=1\n");
+            File.WriteAllText(Path.Combine(gts, LauncherState.FileName), "# a comment\nfuture=1\ngt7_root=" + gt7 + "\n");
             state = new LauncherState(gts);
-            state.SetRoot(GameKind.GT7, gt7 + "\\");
+            state.SetRoot(GameKind.GT7, gts + "\\other");
+            Check(state.RootOf(GameKind.GT7) == gts && state.FormerGt7Root() == gt7, "A saved GT7 folder is ignored and named as the former one");
             state.Last = GameKind.GT7;
             state.Save();
             var text = File.ReadAllText(Path.Combine(gts, LauncherState.FileName));
-            Check(text.Contains("game=gt7") && text.Contains("gt7_root=" + gt7) && text.Contains("gts_root=\r\n"), "Saved: game and GT7's folder, GT Sport's default left empty");
+            Check(text.Contains("game=gt7") && text.Contains("gt7_root=" + gt7) && text.Contains("gts_root=\r\n"), "Saved: game, the old GT7 folder kept as it was");
             Check(text.Contains("# a comment") && text.Contains("future=1"), "Unknown lines kept");
             var again = new LauncherState(gts);
-            Check(again.Last == GameKind.GT7 && again.RootOf(GameKind.GT7) == gt7 && again.Ready(GameKind.GT7), "Read back");
+            Check(again.Last == GameKind.GT7 && again.RootOf(GameKind.GT7) == gts, "Read back");
             // GT Sport's folder is the launcher's own and can't be changed outside a transient session.
             again.SetRoot(GameKind.GTSport, gt7);
             Check(again.Setting(GameKind.GTSport) == "" && again.RootOf(GameKind.GTSport) == gts && again.Ready(GameKind.GTSport),
                   "GT Sport's folder stays the launcher's");
             File.WriteAllText(Path.Combine(gts, LauncherState.FileName), "game=gts\ngts_root=" + gt7 + "\n");
             Check(new LauncherState(gts).RootOf(GameKind.GTSport) == gts, "A saved GT Sport folder is ignored");
+            // FIX-RT-007: --game (snapshots, --setup --game) is transient, and it ignores saved folders too.
+            File.WriteAllText(Path.Combine(gts, LauncherState.FileName), "game=gt7\ngts_root=" + gt7 + "\ngt7_root=" + gt7 + "\n");
+            var forced = new LauncherState(gts) { Transient = true };
+            Check(forced.RootOf(GameKind.GT7) == gts && forced.RootOf(GameKind.GTSport) == gts && forced.FormerGt7Root() == gt7,
+                  "--game ignores the saved folders and still names the former GT7 folder");
+            string empty = Folder(root, "emptyGT7");
+            File.WriteAllText(Path.Combine(gts, LauncherState.FileName), "gt7_root=" + empty + "\n");
+            Check(new LauncherState(gts).FormerGt7Root() == null, "An empty former GT7 folder is not named");
             // A transient session may still point GT Sport elsewhere. FEAT-GTS-291: GT Sport may use the
             // ryGT7 folder too, every name either game writes there follows its serial.
             var pointed = new LauncherState(gts) { Transient = true };

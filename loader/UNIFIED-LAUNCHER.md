@@ -12,13 +12,14 @@ and says where each feature lives now. FEAT-GTS-291 (0.3.1) gave it its own name
   are then built for that game. The fade runs on the launcher's animation timer (`Anim`) and is drawn double
   buffered: `Dark.Accent`, `AccentHover` and `AccentText` are read at paint time, and labels drawn in the
   accent colour are recoloured as it moves.
-- **One folder for both games, or one each.** FEAT-GTS-291: every name a game writes in its folder follows its serial
+- **One folder for both games.** FEAT-GTS-291: every name a game writes in its folder follows its serial
   (CUSA03220 GT Sport, CUSA24769 GT7): `user\custom_configs\<serial>.json`, `shaders\<serial>*`, `user\savedata\<serial>`
   (GAME-004/004), `logs\<serial>`, `app0\<serial>`, the settings `<serial>.RyGT.ini`, and `convert\<serial>`, `temp0\<serial>`,
   `data\<serial>` (`SharedNames` in `GameTarget.cs`). The runtime and renderer libraries are one build for both (one
-  `libs\libSceMbus.prx` too), so GTSport.exe and GT7.exe may sit in ONE folder. By default the launcher's own folder is
-  GT Sport's, and GT7's too when it is a ryGT7 folder (RyGT7.exe or RyGT7.exe.old, RyGT7.ini, CUSA24769.RyGT.ini,
-  GT7.exe or `patches\CUSA24769.xml`); GT7's folder can be another one, picked on the Game page, or the same.
+  `libs\libSceMbus.prx` too), so GTSport.exe and GT7.exe may sit in ONE folder. FEAT-RT-005: both games use the
+  launcher's own folder; there is no folder field. GT7 is ready there once the folder has GT7's files (RyGT7.exe or
+  RyGT7.exe.old, RyGT7.ini, CUSA24769.RyGT.ini, GT7.exe, `patches\CUSA24769.xml` or `libs\libSceTextToSpeech.prx`).
+  A `gt7_root` an older launcher saved in `RyGT-Launcher.ini` is kept but not used; the Game page names it.
   `user\input_config\default.ini` (the controller bindings) and `ryty-input.ini` / `ryty-wheel.ini` stay one for both.
 - **Settings.** Each game's settings are its `<serial>.RyGT.ini`, which the runtime reads too:
   - GT Sport: `CUSA03220.RyGT.ini`, `RyGT.ini` renamed, written line for line as before, plus its config JSON.
@@ -29,7 +30,7 @@ and says where each feature lives now. FEAT-GTS-291 (0.3.1) gave it its own name
     `logs\<serial>\setup.log`.
 
   Only the launcher's own state is new. It lives in `RyGT-Launcher.ini` beside RyGTLauncher.exe: `game=gts|gt7` (the
-  game picked last), `gts_root=` and `gt7_root=`. An empty root means the default folder. The launcher keeps
+  game picked last), and `gts_root=` / `gt7_root=` from older launchers, kept but not used (FEAT-RT-005). The launcher keeps
   any other lines in that file. A GT Sport player who never opens GT7 gets no new file, and nothing in
   their folder changes.
 - **Launches.** Each game starts its own exe with its own launcher's environment, copied verbatim:
@@ -53,7 +54,7 @@ and says where each feature lives now. FEAT-GTS-291 (0.3.1) gave it its own name
   `patches\CUSA24769.xml`), and it never touches either game's settings, converted exe or data. ryGT7's
   GitLab updater (`Gt7Updater.cs`) is gone. A ryGT7 folder from GitLab (manifest `RyGT7-...`) shows its
   version but can't be updated until it holds a RyGTS package for GT7 (manifest `RyGTS-...` or a
-  `BUILD_INFO.txt` commit); the RyGTS releases don't have one yet.
+  `BUILD_INFO.txt` commit); every RyGTS package carries GT7's files since FEAT-RT-006.
 
 ## Sources
 
@@ -73,8 +74,8 @@ and says where each feature lives now. FEAT-GTS-291 (0.3.1) gave it its own name
 |---|---|---|---|
 | Home view | pictures, logo/title "GRAN TURISMO SPORT", Play, gear, update + Changelog buttons | the same, title "...7", the signed-in online ID at the top right | **shared**, plus the Game list; title, caption, version and pictures per game |
 | Sidebar pages | Game, Display, Graphics, Shaders, Controls, Advanced, About | Game, Display, Graphics, Shaders, Controls, Account, Online, About, Advanced | per game, as each had it |
-| Game page paths | Game (CUSA03220), Update 1.69, System modules, Fonts (optional) | Base game (CUSA24769), Update (optional), System modules, Fonts | **shared page with one section per game** (selected game first), each with its folder field and its own labels; saved to that game's ini when left |
-| Set up | SELF unwrap, ryty convert, version info + embedded icon, game scripts (adcpatch), shaders.pack / shader manifest prep, SHA-256 build record | GameLayout validation, 1.00 conversion fix, Offline mode patch, game icon, app0 linking for old runtimes, ConfigureGT7 | **game-only** (`RunSetupGts` / `RunSetupGt7`); the helpers they share are single: SELF unwrap, fonts, modules, converter run, shader folder migration |
+| Game page paths | Game (CUSA03220), Update 1.69, System modules, Fonts (optional) | Base game (CUSA24769), Update (optional), System modules, Fonts | **shared page with one section per game** (selected game first), with its own labels; both games use the launcher's folder (FEAT-RT-005), so there is no folder field; saved to that game's ini when left |
+| Set up | SELF unwrap, ryty convert, version info + embedded icon, shared shader folder, SHA-256 build record (game scripts and shader prep from the game files removed, FIX-GTS-293/294) | GameLayout validation, 1.00 conversion fix, Offline mode patch, game icon, app0 linking for old runtimes, ConfigureGT7 | **game-only** (`RunSetupGts` / `RunSetupGt7`); the helpers they share are single: SELF unwrap, fonts, modules, converter run, shader folder migration |
 | Firmware modules | + libSceBluetoothHid | without it | per game |
 | Display | Vulkan device, screen mode/resolution/refresh, screen shape (16:9 / fill / true wide), fast flips, FPS, splash, Discord, opening movie, RAM | screen mode/resolution/refresh + Ultrawide presets, FPS, splash, Discord, RAM, VRAM budget | **shared** screen and RAM rows (Ultrawide row GT7 only; RAM keeps each game's pipeline-cache rule); the rest game-only |
 | Graphics | upscaler (FSR 1/3/4, XeSS, DLSS), scene quality / supersampling, Anti-Lag, frame generation, sharpening, libraries, wet reflections, half-rate mirror, enhancements | method/quality (`upscale_quality`), DLSS texture detail, HDR peak/paper white, PS4 Pro mode, race fps lock, texture LOD, driver cache, AMD fix | **game-only**: different config keys and different renderer switches |
@@ -117,5 +118,5 @@ and says where each feature lives now. FEAT-GTS-291 (0.3.1) gave it its own name
   check that GT Sport's renderer works with that set.
 - Controls: GT7's drawn Controls page and GT Sport's Controls, Bindings, Wheel and Feel windows edit the same
   files. Making one UI for both is a design decision.
-- Packaging: both packages ship RyGTLauncher.exe (FEAT-GTS-291). The RyGTS release has no GT7 runtime yet,
-  so GT7 folders can't be updated from it until it does.
+- Packaging: done (FEAT-RT-006). The RyGTS package carries GT7's files too (libSceTextToSpeech.prx,
+  patches\CUSA24769.xml, the server), so one package serves both games and GT7 folders update from it.

@@ -1894,7 +1894,7 @@ namespace RyGT
 
         public ChangelogDialog(ReleaseInfo release)
         {
-            Text = release.Name.Length > 0 ? release.Name : "Changelog";
+            Text = release.Name.Length > 0 ? release.Name.Replace("RyGTS", "RyGT") : "Changelog"; // FIX-RT-010: one name
             try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { } // the launcher's logo
             StartPosition = FormStartPosition.CenterParent;
             ShowInTaskbar = false;
@@ -2301,37 +2301,48 @@ namespace RyGT
         {
             bool ready = RootReady(target);
             Text = info.WindowTitle;
-            Icon icon = null;
-            try { icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
+            // FIX-RT-010: one launcher, one icon: the window takes RyGTLauncher.exe's own for both games.
+            try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
+            Image gameIcon = null;
             if (target == GameKind.GT7 && ready)
             {
-                // ryGT7: the window takes the player's own GT7 icon once Set up has found it.
+                // GT7's own icon (icon0.png) beside the player's online ID once Set up has found it.
                 try
                 {
                     string iconPath = GameFile("sce_sys\\icon0.png");
                     if (iconPath != null)
-                        using (var bitmap = new Bitmap(iconPath)) icon = Icon.FromHandle(bitmap.GetHicon());
+                        using (var bitmap = new Bitmap(iconPath)) gameIcon = new Bitmap(bitmap);
                 }
                 catch { }
             }
-            if (icon != null) Icon = icon;
             home.Accent = info.TitleAccent;
             home.Logo = LoadLogo(); // the game folder's, else the RY logo built into RyGTLauncher.exe
             home.Player = "";
             home.PlayerLogo = null;
             if (target == GameKind.GT7)
             {
-                home.Caption = Dark.Spaced("CUSA24769   " + (char)183 + "   PS4   " + (char)183 + "   RYGT7 FOR WINDOWS");
+                // FIX-RT-011: GT7's update, the VERSION in the game's param.sfo (01.71 -> UPDATE 1.71; APP_VER
+                // stays 01.00 in a merged dump), else PS4.
+                string update = null;
+                try
+                {
+                    string sfo = ready ? GameFile("sce_sys\\param.sfo") : null;
+                    string value;
+                    if (sfo != null && GameLayout.ReadSfo(sfo).TryGetValue("VERSION", out value) && value.Trim().Length > 0)
+                        update = value.Trim().TrimStart('0');
+                }
+                catch { }
+                home.Caption = Dark.Spaced("CUSA24769   " + (char)183 + "   " + (update != null ? "UPDATE " + update : "PS4"));
                 string release = ready ? Updater.ReleaseVersion(root) : null;
-                home.Version = "RyGT Launcher " + LauncherVersion.Value + "  " + (char)183 + "  ryGT7" + (release == null ? "" : " " + Updater.Display(release)) +
-                               "  " + (char)183 + "  GT7 " + (char)183 + " CUSA24769";
-                try { home.PlayerLogo = Icon.ToBitmap(); } catch { }
+                home.Version = "RyGT Launcher " + LauncherVersion.Value + "  " + (char)183 + "  RyGT" + (release == null ? "" : " " + Updater.Display(release)) +
+                               "  " + (char)183 + "  GT7" + (update != null ? " " + update : "") + " " + (char)183 + " CUSA24769";
+                try { home.PlayerLogo = gameIcon ?? Icon.ToBitmap(); } catch { }
             }
             else
             {
                 string installed = ready ? Updater.InstalledVersion(root) : null;
-                home.Caption = Dark.Spaced("CUSA03220   " + (char)183 + "   UPDATE 1.69   " + (char)183 + "   RYGTS FOR WINDOWS");
-                home.Version = "RyGT Launcher " + LauncherVersion.Value + "  " + (char)183 + "  RyGTS" + (installed == null ? "" : " " + Updater.Display(installed)) +
+                home.Caption = Dark.Spaced("CUSA03220   " + (char)183 + "   UPDATE 1.69");
+                home.Version = "RyGT Launcher " + LauncherVersion.Value + "  " + (char)183 + "  RyGT" + (installed == null ? "" : " " + Updater.Display(installed)) +
                                "  " + (char)183 + "  GT Sport 1.69 " + (char)183 + " CUSA03220";
             }
             if (fadePictures) home.ReplacePictures(LoadBackgrounds());
@@ -2364,7 +2375,7 @@ namespace RyGT
             SwitchWalker.Game = target;
             CustomEnvironment.ExeName = info.ExeName;
             pageNames = !ready ? new[] { "Game", "About" }
-                      : target == GameKind.GT7 ? new[] { "Game", "Display", "Graphics", "Shaders", "Controls", "Account", "Online", "About", "Advanced" }
+                      : target == GameKind.GT7 ? new[] { "Game", "Display", "Graphics", "Shaders", "Controls", "Account", "Online", "Advanced", "About" }
                       : new[] { "Game", "Display", "Graphics", "Shaders", "Controls", "Advanced", "About" };
 
             // The sidebar: the game's logo, or its title as text.
@@ -2484,12 +2495,8 @@ namespace RyGT
             var files = Section(page, gameInfo.Name);
             var boxes = new TextBox[5];
             pathBoxes[game] = boxes;
-            // GT Sport's folder is the launcher's own: no field for it. GT7's is picked here.
-            if (game == GameKind.GT7)
-            {
-                boxes[0] = AddRow(files, gameInfo.Product + " folder (" + gameInfo.ExeName + ")", state.RootOf(game), delegate { CommitRoot(game); });
-                boxes[0].Leave += delegate { CommitRoot(game); };
-            }
+            // FEAT-RT-005: both games' folder is the launcher's own (each game's files follow its serial),
+            // so neither has a folder field.
             var s = SettingsOf(game);
             if (game == GameKind.GTSport)
             {
@@ -2510,32 +2517,16 @@ namespace RyGT
                 boxes[i].Enabled = ready;
                 boxes[i].Leave += delegate { CommitPaths(game); };
             }
+            string former = game == GameKind.GT7 ? state.FormerGt7Root() : null;
             if (!ready)
                 files.Controls.Add(Hint(game == GameKind.GT7
-                    ? "Pick the folder you extracted the ryGT7 release to (the one with libs, converter and patches). GT7's settings, saves, logs and shaders stay in it."
-                    : "Pick the RyGTS folder (the one with converter, libs and tools). It must not be the ryGT7 folder: each game needs its own."));
+                    ? "GT7 uses this launcher's folder, like GT Sport. It doesn't have GT7's files yet (libs\\libSceTextToSpeech.prx, patches\\CUSA24769.xml): update it to a RyGT build that carries them (Settings > About > Updates), or copy them in from the ryGT7 release."
+                    : "The launcher's folder can't be used (it must hold converter, libs and tools)."));
             else if (game == GameKind.GTSport)
                 files.Controls.Add(Hint("Without PS4 dumped fonts, some in-game UI fonts may not draw or appear correctly."));
-        }
-
-        /// A game's folder field was changed: kept in RyGT-Launcher.ini, and the pages follow it.
-        void CommitRoot(GameKind game)
-        {
-            TextBox[] boxes;
-            if (!pathBoxes.TryGetValue(game, out boxes) || boxes[0] == null || boxes[0].IsDisposed) return;
-            string text = boxes[0].Text.Trim().TrimEnd('\\');
-            if (string.Equals(text, state.RootOf(game), StringComparison.OrdinalIgnoreCase)) return;
-            CommitPaths();
-            state.SetRoot(game, text);
-            MigrateGt7Serial(); // GAME-004, FEAT-GTS-291: a game's folder was chosen
-            try { state.Save(); }
-            catch (Exception e) { MessageBox.Show(this, "Could not save the folder: " + e.Message); }
-            BeginInvoke((Action)delegate
-            {
-                BuildPages();
-                ShowGameOnHome(game == target);
-                if (game == target && RootReady(game)) { ClearUpdate(); if (ReadSetting("Launcher", "check_updates", true)) CheckForUpdate(false); }
-            });
+            if (former != null)
+                files.Controls.Add(Hint("GT7 used to have its own folder, " + former + ". Its saves and settings are still there: " +
+                                        "copy user\\savedata\\CUSA24769 and CUSA24769.RyGT.ini into this folder to keep them."));
         }
 
         /// The Game page's paths into each game's settings (saved when they changed).
@@ -2630,19 +2621,22 @@ namespace RyGT
         {
             bool gt7 = target == GameKind.GT7;
             var aboutPage = NewPage("About", "About", gt7
-                ? "RyGT Launcher " + LauncherVersion.Value + " " + (char)183 + " ryGT7 for Windows " + (char)183 + " Gran Turismo 7 (CUSA24769)"
-                : "RyGT Launcher " + LauncherVersion.Value + " " + (char)183 + " RyGTS for Windows " + (char)183 + " Gran Turismo Sport (CUSA03220) " + (char)183 + " update 1.69");
+                ? "RyGT Launcher " + LauncherVersion.Value + " " + (char)183 + " Gran Turismo 7 (CUSA24769)"
+                : "RyGT Launcher " + LauncherVersion.Value + " " + (char)183 + " Gran Turismo Sport (CUSA03220) " + (char)183 + " update 1.69");
             aboutPage.Controls.Add(new Label
             {
                 AutoSize = true, MaximumSize = new Size(860, 0), ForeColor = Dark.DimText, Tag = "heading", Margin = new Padding(1, 0, 0, 6),
                 // FEAT-GTS-273: the copyright and trademark notice.
                 Text = gt7
-                    ? "ryGT7 converts your own copy of Gran Turismo 7 to run on Windows. " +
-                      "It is a fan project, not affiliated with Sony Interactive Entertainment or Polyphony Digital; " +
-                      "Gran Turismo is their trademark. You need your own copy of the game." + Environment.NewLine +
+                    // FIX-RT-009: the same notice as GT Sport's, with the RyGT-Team copyright.
+                    ? "RyGT converts your own copy of Gran Turismo 7 to run on Windows. You need your own copy of the game." +
+                      Environment.NewLine + Environment.NewLine +
+                      "Copyright © 2026 RyGT-Team." + Environment.NewLine +
+                      "Gran Turismo is a trademark of Sony Interactive Entertainment. " +
+                      "This project is independent of Sony and Polyphony Digital." + Environment.NewLine +
                       // FEAT-GTS-269: the attribution the NVIDIA RTX SDKs License asks for (the DLSS plugin).
                       "This software uses NVIDIA DLSS. NVIDIA, the NVIDIA logo and DLSS are trademarks and/or registered trademarks of NVIDIA Corporation in the U.S. and other countries."
-                    : "RyGTS converts your own copy of Gran Turismo Sport to run on Windows. You need your own copy of the game." +
+                    : "RyGT converts your own copy of Gran Turismo Sport to run on Windows. You need your own copy of the game." +
                       Environment.NewLine + Environment.NewLine +
                       "Copyright © 2026 RyGT-Team." + Environment.NewLine +
                       "Gran Turismo is a trademark of Sony Interactive Entertainment. " +
@@ -2801,7 +2795,7 @@ namespace RyGT
             string installed = Updater.InstalledVersion(root);
             if (installed == null)
             {
-                if (manual) MessageBox.Show(this, "The " + info.Product + " folder didn't come from a RyGTS package (it has no RyGTS manifest.json or BUILD_INFO.txt), " +
+                if (manual) MessageBox.Show(this, "The " + info.Product + " folder didn't come from a RyGT package (it has no manifest.json or BUILD_INFO.txt), " +
                                            "so the launcher can't update it.");
                 return;
             }
@@ -2826,8 +2820,8 @@ namespace RyGT
             if (latest != null && Updater.IsNewer(latest, installed, root)) // FIX-GTS-286: not the same build again
             {
                 pendingUpdate = latest;
-                home.Notice = (latest.Artifact ? "A newer RyGTS nightly is available: " + Updater.Display(latest.Version)
-                                               : "RyGTS " + latest.Version + (latest.Prerelease ? " (prerelease)" : "") + " is available") +
+                home.Notice = (latest.Artifact ? "A newer RyGT nightly is available: " + Updater.Display(latest.Version)
+                                               : "RyGT " + latest.Version + (latest.Prerelease ? " (prerelease)" : "") + " is available") +
                               " (you have " + Updater.Display(installed) + ")." +
                               (latest.Changes().Count > 0 ? "" : Environment.NewLine + latest.Summary(240)); // the notes are behind Changelog
                 updateButton.Text = "Update"; // the notice names the version; the button had no room for it
@@ -2840,8 +2834,8 @@ namespace RyGT
             {
                 MessageBox.Show(this, error != null ? "Could not check for updates: " + error.Message
                                     : latest == null && channel == Updater.Nightly ? "No nightly to update to was found (nightlies are kept for 7 days)."
-                                    : latest == null ? "No RyGTS " + ChannelName(channel) + " was found on GitHub."
-                                    : "RyGTS " + Updater.Display(installed) + " is the newest " + ChannelName(channel) + ".");
+                                    : latest == null ? "No RyGT " + ChannelName(channel) + " was found on GitHub."
+                                    : "RyGT " + Updater.Display(installed) + " is the newest " + ChannelName(channel) + ".");
             }
         }
 
@@ -2851,10 +2845,10 @@ namespace RyGT
         {
             var release = pendingUpdate;
             if (release == null || busy) return;
-            if (MessageBox.Show(this, "Update RyGTS to " + Updater.Display(release.Version) + (release.Prerelease ? " (prerelease)" : "") + "?" +
+            if (MessageBox.Show(this, "Update RyGT to " + Updater.Display(release.Version) + (release.Prerelease ? " (prerelease)" : "") + "?" +
                                 Environment.NewLine + Environment.NewLine +
                                 "The launcher restarts when it is done. Your game, saves and settings are kept, and you can roll back " +
-                                "from Settings > About.", "Update RyGTS", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK)
+                                "from Settings > About.", "Update RyGT", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK)
                 return;
             busy = true;
             updateButton.Enabled = false;
@@ -2921,7 +2915,7 @@ namespace RyGT
             rollBack.Click += delegate
             {
                 if (busy) return;
-                if (MessageBox.Show(this, "Put back RyGTS " + Updater.Display(last.Item2) + " (as before the update to " + Updater.Display(last.Item3) +
+                if (MessageBox.Show(this, "Put back RyGT " + Updater.Display(last.Item2) + " (as before the update to " + Updater.Display(last.Item3) +
                                     ") and restart the launcher?", "Roll back", MessageBoxButtons.OKCancel) != DialogResult.OK)
                     return;
                 try { Updater.RollBack(root); Updater.Restart(root); }
@@ -3007,8 +3001,21 @@ namespace RyGT
             thread.Start();
         }
 
-        /// The pictures behind the home view: the game folder's launcher\background*.png or .jpg (not
-        /// the .bak ones), else the game's own pic1.png.
+        /// FIX-RT-008: the folders holding the selected game's launcher pictures, first its own one,
+        /// launcher\<serial>, then launcher itself when those pictures are this game's. A shared folder's
+        /// launcher\background.png and logo.png are GT Sport's (the RyGTS package ships them) while
+        /// GTSport.exe is there; in a folder with only GT7.exe (a ryGT7 release) they are GT7's.
+        List<string> PictureFolders()
+        {
+            var folders = new List<string> { Path.Combine(root, "launcher", info.TitleId) };
+            bool gts = File.Exists(Path.Combine(root, GameInfo.GTSport.ExeName)), gt7 = File.Exists(Path.Combine(root, GameInfo.GT7.ExeName));
+            if (gts ? target == GameKind.GTSport : !gt7 || target == GameKind.GT7) folders.Add(Path.Combine(root, "launcher"));
+            return folders;
+        }
+
+        /// The pictures behind the home view: launcher\<serial>\background*.png or .jpg, else
+        /// launcher\background* when they are this game's (PictureFolders; not the .bak ones), else the
+        /// picture built into the launcher, else the game's own pic1.png.
         List<Image> LoadBackgrounds()
         {
             var found = new List<Image>();
@@ -3019,10 +3026,10 @@ namespace RyGT
                 if (builtIn != null) found.Add(builtIn);
                 return found;
             }
-            string folder = Path.Combine(root, "launcher");
+            foreach (string folder in PictureFolders())
             try
             {
-                if (Directory.Exists(folder))
+                if (found.Count == 0 && Directory.Exists(folder))
                 {
                     var paths = Directory.GetFiles(folder, "background*.*")
                         .Where(p => p.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || p.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase))
@@ -3238,15 +3245,17 @@ namespace RyGT
         }
 
 
-        /// The logo, launcher\logo.png next to RyGTLauncher.exe (null without it: the title is text).
+        /// The logo: launcher\<serial>\logo.png, or launcher\logo.png when it is this game's
+        /// (PictureFolders), else the one built into the launcher.
         Image LoadLogo()
         {
             if (RootReady(target))
-            {
-                string path = Path.Combine(root, "launcher", "logo.png");
-                try { if (File.Exists(path)) return Image.FromStream(new MemoryStream(File.ReadAllBytes(path))); }
-                catch { }
-            }
+                foreach (string folder in PictureFolders())
+                {
+                    string path = Path.Combine(folder, "logo.png");
+                    try { if (File.Exists(path)) return Image.FromStream(new MemoryStream(File.ReadAllBytes(path))); }
+                    catch { }
+                }
             // FEAT-GTS-290: the game's RY logo built into RyGTLauncher.exe (RY GTS, RY GT7).
             return EmbeddedPicture(target == GameKind.GT7 ? "gt7-logo.png" : "gts-logo.png");
         }

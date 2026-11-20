@@ -892,7 +892,7 @@ namespace RyGT
                 Log("This update is not yet verified. The converter will use its executable without version-specific offsets.");
             foreach (string name in new[] { "libSceVideoOut.prx", "libSceMbus.prx", "libSceTextToSpeech.prx" })
                 if (!File.Exists(Path.Combine(root, "libs", name)))
-                    throw new Exception("The ryGT7 runtime is incomplete: libs\\" + name + " is missing. Extract the full release archive first.");
+                    throw new Exception("The RyGT runtime is incomplete: libs\\" + name + " is missing. Extract the full release archive first.");
 
             string fontDir, font2Dir;
             FindFonts(settings.Fonts, out fontDir, out font2Dir);
@@ -1047,7 +1047,7 @@ namespace RyGT
                 if (Wine.Detected) unixLinks[target] = pair.Value;
                 else if (!Native.CreateHardLink(target, pair.Value, IntPtr.Zero) &&
                          !Native.CreateSymbolicLink(target, pair.Value, 2))
-                    throw new Exception("Could not link " + pair.Value + ". Keep ryGT7 on the game's drive or enable Windows Developer Mode.");
+                    throw new Exception("Could not link " + pair.Value + ". Keep RyGT on the game's drive or enable Windows Developer Mode.");
                 linked++;
             }
             if (Wine.Detected) Wine.Link(unixLinks);
@@ -1335,11 +1335,17 @@ namespace RyGT
                     start.EnvironmentVariables["RYGT_LOG_DIRECTORY"] = logDirectory;
                     // GAME-004: the renderer and the runtime take the game from the launcher.
                     start.EnvironmentVariables["SHADGT_GAME"] = "gt7";
+                    // FIX-RT-012: patches\scripts holds GT Sport's replacement scripts (GTS-005: GALLERY.ADC,
+                    // UI_KIT.ADC...) in a folder both games share; the renderer would serve them to GT7 too.
+                    start.EnvironmentVariables["SHADGT_SCRIPTS"] = "0";
                     start.EnvironmentVariables["RYTY_INTEROP_BASE"] = "8000000000";
                     // PERF-161: GT7's per-frame memory (0x200000000-0x208000000), which the CPU rewrites
                     // every frame and a few compute passes write too, stays in guest memory: kept in a
                     // renderer region, each CPU write faulted (about 60,000 a second) and was copied in.
-                    start.EnvironmentVariables["RYGT_NATIVE_INPLACE_RANGES"] = "1020000000+1de000,1020235000+1dd000,1020407000+b000,200000000+8000000";
+                    // FIX-RT-002: GT7's GPU culling memory as one range (0x1020000000-0x1020412000),
+                    // gap included: PS4 Pro mode moves visibility data into the gap the base PS4's
+                    // three ranges left out. Keep in step with core/libs/prx/libc/src/LaunchDefaults.cpp.
+                    start.EnvironmentVariables["RYGT_NATIVE_INPLACE_RANGES"] = "1020000000+412000,200000000+8000000";
                     // FIX-213: GT7 reads back what the GPU writes into its CPU pools from 0xe000000000
                     // up (GT Sport's are above 0xf000000000, the renderer's default); kept in a
                     // renderer region, the CPU saw stale data and culled the whole rear-view mirror.

@@ -33,7 +33,7 @@ namespace RyGT
         public string ExeName;      // "GTSport.exe"
         public string ProcessName;  // "GTSport"
         public string IniName;      // "CUSA03220.RyGT.ini" (FEAT-GTS-291: <TitleId>.RyGT.ini)
-        public string Product;      // "RyGTS": the release whose folder the game is in
+        public string Product;      // "RyGT" for both (FIX-RT-010: one launcher, one name in its UI)
         public string TitleAccent;  // "SPORT": the home view's title is GRAN TURISMO <accent>
         public string WindowTitle;
         /// The launcher's accent while this game is picked: red for GT Sport, blue for GT7.
@@ -42,7 +42,7 @@ namespace RyGT
         public static readonly GameInfo GTSport = new GameInfo
         {
             Kind = GameKind.GTSport, Key = "gts", Name = "Gran Turismo Sport", Short = "GT Sport", TitleId = "CUSA03220",
-            ExeName = "GTSport.exe", ProcessName = "GTSport", IniName = "CUSA03220.RyGT.ini", Product = "RyGTS", TitleAccent = "SPORT",
+            ExeName = "GTSport.exe", ProcessName = "GTSport", IniName = "CUSA03220.RyGT.ini", Product = "RyGT", TitleAccent = "SPORT",
             WindowTitle = "RyGT Launcher - Gran Turismo Sport",
             Accent = Color.FromArgb(178, 24, 36), AccentHover = Color.FromArgb(206, 40, 52), AccentText = Color.FromArgb(240, 92, 76)
         };
@@ -50,7 +50,7 @@ namespace RyGT
         public static readonly GameInfo GT7 = new GameInfo
         {
             Kind = GameKind.GT7, Key = "gt7", Name = "Gran Turismo 7", Short = "GT7", TitleId = "CUSA24769",
-            ExeName = "GT7.exe", ProcessName = "GT7", IniName = "CUSA24769.RyGT.ini", Product = "ryGT7", TitleAccent = "7",
+            ExeName = "GT7.exe", ProcessName = "GT7", IniName = "CUSA24769.RyGT.ini", Product = "RyGT", TitleAccent = "7",
             WindowTitle = "RyGT Launcher - Gran Turismo 7",
             Accent = Color.FromArgb(24, 96, 196), AccentHover = Color.FromArgb(44, 120, 224), AccentText = Color.FromArgb(92, 162, 255)
         };
@@ -197,6 +197,8 @@ namespace RyGT
         readonly string launcherRoot, path;
         readonly List<string> otherLines = new List<string>();
         readonly Dictionary<GameKind, string> roots = new Dictionary<GameKind, string> { { GameKind.GTSport, "" }, { GameKind.GT7, "" } };
+        // FIX-RT-007: a folder a transient session was given (SetRoot), never the one an older launcher saved.
+        readonly Dictionary<GameKind, string> given = new Dictionary<GameKind, string> { { GameKind.GTSport, "" }, { GameKind.GT7, "" } };
         public GameKind Last;
         /// Set for the tests and --setup --game: nothing is written back.
         public bool Transient;
@@ -232,34 +234,44 @@ namespace RyGT
         }
 
         /// The folder as set (empty: the default below).
-        public string Setting(GameKind game) { return roots[game]; }
+        public string Setting(GameKind game) { return Transient && given[game].Length > 0 ? given[game] : roots[game]; }
 
         /// Sets a game's folder; the default folder (or nothing) is kept as empty, so it follows the launcher.
         public void SetRoot(GameKind game, string folder)
         {
-            // GT Sport's folder is the launcher's own (it has no folder field); only a transient session
-            // (the tests, --setup --game gts with a folder) may point it elsewhere.
-            if (game == GameKind.GTSport && !Transient) return;
+            // FEAT-RT-005: both games' folder is the launcher's own (no folder field); only a transient
+            // session (the tests, --setup --game with a folder) may point one elsewhere.
+            if (!Transient) return;
             folder = (folder ?? "").Trim().TrimEnd('\\');
-            roots[game] = string.Equals(folder, DefaultRoot(game), StringComparison.OrdinalIgnoreCase) ? "" : folder;
+            given[game] = string.Equals(folder, DefaultRoot(game), StringComparison.OrdinalIgnoreCase) ? "" : folder;
         }
 
-        /// The game's folder: the one set, else the launcher's own folder when the game can use it (GT Sport
-        /// always: it has no folder field; GT7 in a ryGT7 folder), else empty.
+        /// The game's folder: the launcher's own (FEAT-RT-005: each game's files follow its serial, so both
+        /// share it), or for a transient session the one set.
         public string RootOf(GameKind game)
         {
-            string set = game == GameKind.GTSport && !Transient ? "" : roots[game];
+            string set = Transient ? given[game] : "";
             if (set.Length == 0) return DefaultRoot(game);
             try { return Path.GetFullPath(set).TrimEnd('\\'); }
             catch { return ""; } // not a path: as if none were set (the Game page shows what was typed)
         }
 
-        string DefaultRoot(GameKind game)
+        string DefaultRoot(GameKind game) { return launcherRoot; }
+
+        /// A GT7 folder an older launcher kept in gt7_root that isn't the launcher's own any more: it still
+        /// holds that GT7's saves and settings. Null when there is none.
+        public string FormerGt7Root()
         {
-            // FEAT-GTS-291: GT Sport's folder is always the launcher's, a ryGT7 folder included (both games
-            // may share one folder now).
-            if (game == GameKind.GTSport) return launcherRoot;
-            return LooksLikeGt7(launcherRoot) ? launcherRoot : "";
+            string set = roots[GameKind.GT7];
+            if (set.Length == 0) return null;
+            try
+            {
+                string full = Path.GetFullPath(set).TrimEnd('\\');
+                // FIX-RT-007: only a folder that still holds GT7's files or saves, not an empty one.
+                return !string.Equals(full, launcherRoot.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase) && Directory.Exists(full) &&
+                       (LooksLikeGt7(full) || Directory.Exists(Path.Combine(full, "user", "savedata"))) ? full : null;
+            }
+            catch { return null; }
         }
 
         /// Whether the game can be set up and played from its folder: it exists, and for GT7 it is a ryGT7
@@ -283,7 +295,8 @@ namespace RyGT
             {
                 return File.Exists(Path.Combine(folder, "RyGT7.exe")) || File.Exists(Path.Combine(folder, "RyGT7.exe.old")) ||
                        File.Exists(Path.Combine(folder, "RyGT7.ini")) || File.Exists(GameInfo.GT7.IniPath(folder)) ||
-                       File.Exists(Path.Combine(folder, "GT7.exe")) || File.Exists(Path.Combine(folder, "patches", "CUSA24769.xml"));
+                       File.Exists(Path.Combine(folder, "GT7.exe")) || File.Exists(Path.Combine(folder, "patches", "CUSA24769.xml")) ||
+                       File.Exists(Path.Combine(folder, "libs", "libSceTextToSpeech.prx"));
             }
             catch { return false; }
         }

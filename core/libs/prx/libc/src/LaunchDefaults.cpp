@@ -82,12 +82,35 @@ int Clamp(const std::string& text, int fallback, int low, int high) {
     return static_cast<int>(value < low ? low : value > high ? high : value);
 }
 
+// FIX-RT-004: launchers built before FIX-RT-002 (RyGT7.exe, RyGTLauncher.exe and RyGTS.exe of
+// 2026-11-15) still pass GT7's old in-place list, which leaves 0x10201de000-0x1020235000 out. GT7's
+// depth pyramid moves visibility data there (more of it on tracks with rain), and those reads went
+// through a renderer region again: scenery missing or unlit for single frames. SetIfMissing keeps
+// a launcher's value, so the old default is replaced here, before the launcher check below. Only
+// that exact string: a list set by hand is left alone.
+constexpr const char* kOldInplaceRanges = "1020000000+1de000,1020235000+1dd000,1020407000+b000,200000000+8000000";
+constexpr const char* kInplaceRanges = "1020000000+412000,200000000+8000000";
+
+void ReplaceOldInplaceRanges() {
+    const char* current = std::getenv("RYGT_NATIVE_INPLACE_RANGES");
+    if (current == nullptr || std::strcmp(current, kOldInplaceRanges) != 0) return;
+#ifdef _WIN32
+    SetEnvironmentVariableA("RYGT_NATIVE_INPLACE_RANGES", kInplaceRanges);
+    _putenv_s("RYGT_NATIVE_INPLACE_RANGES", kInplaceRanges);
+#else
+    setenv("RYGT_NATIVE_INPLACE_RANGES", kInplaceRanges, 1);
+#endif
+    std::fprintf(stderr, "[launch] FIX-RT-004: the launcher's old GT7 in-place list replaced with %s\n",
+                 kInplaceRanges);
+}
+
 } // namespace
 
 void Apply() {
     static bool applied = false;
     if (applied) return;
     applied = true;
+    ReplaceOldInplaceRanges(); // FIX-RT-004: also when the launcher started the game
     // Started by the launcher: it set all of these.
     const char* fromLauncher = std::getenv("RYTY_INTEROP_BASE");
     if (fromLauncher != nullptr && *fromLauncher != '\0') return;
@@ -107,7 +130,11 @@ void Apply() {
 #endif
     // As the launcher's StartGame (loader/RyGTLoader.cs) sets them; keep the two in step.
     SetIfMissing("RYTY_INTEROP_BASE", "8000000000");
-    SetIfMissing("RYGT_NATIVE_INPLACE_RANGES", "1020000000+1de000,1020235000+1dd000,1020407000+b000,200000000+8000000");
+    // FIX-RT-002: GT7's GPU culling memory as one range, gap included. In PS4 Pro mode its larger
+    // depth pyramid moves visibility data into 0x10201de000-0x1020235000, between the ranges
+    // listed for the base PS4, and those writes went through a renderer region again (scenery
+    // missing for single frames). The same list serves the base PS4, Pro and Pro at 4K.
+    SetIfMissing("RYGT_NATIVE_INPLACE_RANGES", kInplaceRanges);
     SetIfMissing("RYGT_NATIVE_INPLACE_FROM", "e000000000");
     if (!root.empty()) SetIfMissing("RYGT_LOG_DIRECTORY", root + "logs\\" + GameSerial::GameSerial());
     SetIfMissing("SHADGT_FPS_LOCK", Setting(config, "race_fps_lock") == "60" ? "60" : "30");

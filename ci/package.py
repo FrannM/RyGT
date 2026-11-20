@@ -12,20 +12,50 @@ import zipfile
 FORBIDDEN = {'.self', '.elf', '.sprx', '.pkg', '.vol', '.adc', '.log', '.pdb'}
 # FEAT-GTS-263: what ci/build-windows.ps1 -Target Tools produces (adcpatch and AMD's FidelityFX runtime).
 TOOLS_FILES = ('adcpatch.exe', 'grim.ad', 'openGrim.ad', 'adcpatch-README.txt', 'GTAdhocToolchain-LICENSE.txt',
-               'GTToolsSharp-LICENSE.txt', 'PDTools-LICENSE.txt', 'amd_fidelityfx_vk.dll', 'amd_fidelityfx_vk-LICENSE.txt')
+               'amd_fidelityfx_vk.dll', 'amd_fidelityfx_vk-LICENSE.txt')
+# FEAT-RT-006: GT7's own built files, also from the Tools target, and where they go: one RyGTS folder runs
+# both games (FEAT-RT-005), so the package carries what only ryGT7's package had.
+GT7_TOOLS_FILES = (('libSceTextToSpeech.prx', 'libs/libSceTextToSpeech.prx'),  # GT7's stubs (runtime/gt7)
+                   ('RyGTServer.exe', 'server/RyGTServer.exe'))               # online play (server/)
+# FEAT-RT-006: the server's zstd, from the Runtime target's pinned toolchain.
+GT7_RUNTIME_FILES = (('libzstd.dll', 'server/libzstd.dll'), ('zstd-LICENSE.txt', 'server/libzstd-LICENSE.txt'))
+# FEAT-RT-006: folders of GT7's files taken from this repository as they are tracked (shadNet's committed
+# shadnet.cfg has no keys).
+REPOSITORY_TREES = (('server/shadnet', 'server/shadnet'), ('server/data', 'server/server-data'))
 # Files that come from this repository.
 REPOSITORY_FILES = (('loader/launcher/background.png', 'launcher/background.png'),
                     ('loader/launcher/README.txt', 'launcher/README.txt'),
                     ('docs/user/LINUX.md', 'LINUX.txt'),
                     ('docs/user/CAMERA_MANAGER.md', 'CAMERA_MANAGER.txt'),
                     ('ci/packaging/CUSA03220.json', 'user/custom_configs/CUSA03220.json'),
-                    # FEAT-GTS-284: the shared shader manifest (records, pipeline recipes, the shader
-                    # index; no shader code), made with adcpatch manifestpack.
-                    ('ci/packaging/shader-manifest.bin', 'tools/adcpatch/shader-manifest.bin'),
                     ('tools/amd/Add-To-AMD-Software.ps1', 'tools/amd/Add-To-AMD-Software.ps1'),
                     ('LICENSE', 'LICENSE'),
                     # FEAT-GTS-287: the DLSS plugin's own licence (MIT; dlss\ holds only the DLL).
-                    ('plugins/dlss/LICENSE', 'ryGT_dlss-LICENSE.txt'))
+                    ('plugins/dlss/LICENSE', 'ryGT_dlss-LICENSE.txt'),
+                    # FEAT-RT-006: GT7's offline patch and the server's notes.
+                    ('patches/CUSA24769.xml', 'patches/CUSA24769.xml'),
+                    ('patches/README.md', 'patches/README.md'),
+                    ('patches/Proper-Offline-Patch-README.txt', 'patches/Proper-Offline-Patch-README.txt'),
+                    ('server/README.md', 'server/README.md'))
+
+
+# What a shadNet or RyGTServer run leaves in those folders (a developer's checkout): never packaged.
+TREE_SKIP_DIRS = {'db', 'score_data', 'tss_data', 'logs', 'captures', 'responses', 'rooms'}
+TREE_SKIP_SUFFIXES = ('.log', '.running', '.db', '.db-shm', '.db-wal', '.token')
+
+
+def repository_tree_files(root):
+    """(file in the repository, its place in the package) for every file of REPOSITORY_TREES."""
+    files = []
+    for folder, target in REPOSITORY_TREES:
+        found = sorted(path for path in (root / folder).rglob('*') if path.is_file() and
+                       not TREE_SKIP_DIRS & set(path.relative_to(root / folder).parts[:-1]) and
+                       not path.name.endswith(TREE_SKIP_SUFFIXES))
+        if not found:
+            raise RuntimeError(f'No files in {folder}')
+        files += [(path.relative_to(root).as_posix(), target + '/' + path.relative_to(root / folder).as_posix())
+                  for path in found]
+    return files
 
 
 def launcher_version(source_root):
@@ -221,7 +251,8 @@ def assemble(commit, flavor, channel, suffix):
 
     # FEAT-GTS-263: every file is built by this pipeline, downloaded pinned by the Tools target, or
     # taken from this repository; there is no runtime archive any more.
-    for repository_file, relative in REPOSITORY_FILES:
+    tree_files = repository_tree_files(root)
+    for repository_file, relative in REPOSITORY_FILES + tuple(tree_files):
         place(root / repository_file, relative)
     place(launcher, 'RyGTLauncher.exe')
     place(renderer, 'libs/libSceVideoOut.prx')
@@ -248,12 +279,17 @@ def assemble(commit, flavor, channel, suffix):
             place(tool, file)
         else:
             place(tool, 'tools/adcpatch/' + ('README.txt' if file == 'adcpatch-README.txt' else file))
+    for file, relative in GT7_TOOLS_FILES:
+        place(verify_artifact(tools_folder, file, commit), relative)
+    for file, relative in GT7_RUNTIME_FILES:
+        place(verify_artifact(runtime_folder, file, commit, 'pe' if file.endswith('.dll') else 'data'), relative)
     check_package_imports(stage)
     for name_required in ('converter/ryty.exe', 'tools/adcpatch/adcpatch.exe', 'tools/ryty-wheel-probe.exe',
                           'tools/ryty-feel-test.exe', 'dlss/' + DLSS_PLUGIN, DLSS_LICENSE,
                           'libs/libc.prx', 'libs/libkernel.prx', 'libs/libSceBluetoothHid.prx',
                           'amd_fidelityfx_vk.dll', 'amd_fidelityfx_vk-LICENSE.txt', 'launcher/background.png',
-                          'user/custom_configs/CUSA03220.json'):
+                          'user/custom_configs/CUSA03220.json', 'patches/CUSA24769.xml',
+                          'server/shadnet/shadnet.exe') + tuple(relative for _, relative in GT7_TOOLS_FILES + GT7_RUNTIME_FILES):
         if not (stage / name_required).is_file():
             raise RuntimeError(f'Incomplete runtime package: {name_required}')
     if sorted(file.name for file in (stage / 'dlss').iterdir()) != [DLSS_PLUGIN]:
@@ -269,10 +305,12 @@ def assemble(commit, flavor, channel, suffix):
             built=['RyGTLauncher.exe', 'libs/libSceVideoOut.prx', 'converter/ryty.exe', 'tools/ryty-wheel-probe.exe',
                    'tools/adcpatch/adcpatch.exe'] + sorted('libs/' + library.name for library in libraries) +
                   ['libs/' + name for name in RENDERER_LIBRARIES if name not in {library.name for library in libraries}] +
-                  ['tools/' + name for name in RENDERER_TOOLS] + ['dlss/' + DLSS_PLUGIN],
-            toolchain=list(RUNTIME_DLLS) + ['converter/' + dll for dll in RUNTIME_DLLS],
+                  ['tools/' + name for name in RENDERER_TOOLS] + ['dlss/' + DLSS_PLUGIN] +
+                  [relative for _, relative in GT7_TOOLS_FILES],
+            toolchain=list(RUNTIME_DLLS) + ['converter/' + dll for dll in RUNTIME_DLLS] +
+                      [relative for _, relative in GT7_RUNTIME_FILES],
             downloaded=['amd_fidelityfx_vk.dll', 'amd_fidelityfx_vk-LICENSE.txt', DLSS_LICENSE],
-            repository=[relative for _, relative in REPOSITORY_FILES]))
+            repository=[relative for _, relative in REPOSITORY_FILES + tuple(tree_files)]))
     if suffix:
         # PDBs are not packaged. Only these explicitly verified same-build
         # symbols are admitted to debug-ci, adjacent to their matching modules.

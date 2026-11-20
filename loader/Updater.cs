@@ -88,7 +88,10 @@ namespace RyGT
         // FEAT-GTS-291: each game's settings are <serial>.RyGT.ini now; the old names stay protected for
         // folders not moved yet.
         static readonly string[] ProtectedFiles = { "CUSA03220.RyGT.ini", "CUSA24769.RyGT.ini", "RyGT.ini", "RyGT7.ini", "RyGT-Launcher.ini", "GTSport.exe", "GTSport.exe.converted",
-                                                    "GT7.exe", "GT7.exe.converted", "GT7.registry.json", "setup-out.txt" };
+                                                    "GT7.exe", "GT7.exe.converted", "GT7.registry.json", "setup-out.txt",
+                                                    // FEAT-RT-006: RyGTS packages carry GT7's server; its shadNet settings hold
+                                                    // the keys the Online page made for this player (EnsureShadNetKeys).
+                                                    "server\\shadnet\\shadnet.cfg" };
         // ----
 
         public const string Stable = "stable", Prerelease = "prerelease", Nightly = "nightly";
@@ -309,7 +312,7 @@ namespace RyGT
                     string when = (run["created_at"] as string ?? "").Replace('T', ' ').TrimEnd('Z');
                     return new ReleaseInfo
                     {
-                        Artifact = true, Version = "ci-" + sha.Substring(0, 8), Tag = sha, Commit = sha, Name = Product + " nightly " + sha.Substring(0, 8),
+                        Artifact = true, Version = "ci-" + sha.Substring(0, 8), Tag = sha, Commit = sha, Name = "RyGT nightly " + sha.Substring(0, 8),
                         Notes = "Built " + (when.Length >= 16 ? when.Substring(0, 16) + " UTC" : when) + " from " + Branch + ".",
                         ZipName = NightlyPrefix + sha.Substring(0, 8) + ".zip",
                         ZipUrl = "https://nightly.link/" + Repository + "/actions/runs/" + id + "/" + name + ".zip"

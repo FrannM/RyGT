@@ -1,5 +1,28 @@
 # Notes for agents working on RyGTS
 
+## Ticket IDs: RT for both games, GTS or GT7 for one
+
+Every change carries a ticket ID of the form `<KIND>-<GAME>-<NNN>` in its commit subject and in
+the code comments next to it.
+
+| Part | Values |
+|---|---|
+| Kind | `FIX`, `PERF`, `DIAG`, `FEAT` |
+| Game | `RT` when the change applies to both games (the runtime, the launcher, packaging, CI), `GTS` for GT Sport only, `GT7` for GT7 only |
+| Number | three digits |
+
+- **RT has its own count, started at 001 on 2026-11-17** (`FIX-RT-001`, `FEAT-RT-002`, ...).
+  GTS and GT7 keep the counts they had; numbers are never reused within one tag. The renderer
+  (shadGT) uses `SGT` for its shared work, with a count of its own.
+- **Use RT for anything shared**: runtime modules, the unified launcher, switches, updater,
+  packages, CI. Use GTS or GT7 only when the code is gated to one game (a game hook, a per-game
+  default, one game's serial).
+- **Before taking a number**, check it is free: `git log --all` subjects, `git grep` of the tree and
+  the open and closed PRs' titles (`gh pr list --state all`). Another contributor may have used
+  the next number on a branch you have not fetched.
+- **Old tickets keep their IDs.** Do not rename `FEAT-GTS-…` comments of changes that are already
+  pushed; new work on them takes a new RT number and may name the old one.
+
 ## Switch names: SHADGT_, RYGT_ or SHARED_ (FEAT-GTS-275)
 
 From FEAT-GTS-275 on, an environment switch is named after where it takes effect:
