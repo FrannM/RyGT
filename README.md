@@ -1,22 +1,32 @@
 # RyGTS
 
 <h1 align="center">
-  <sub>Gran Turismo Sport on PC</sub>
+  <sub>Gran Turismo Sport and Gran Turismo 7 on PC</sub>
 </h1>
 
 
-**Gran Turismo Sport running as a native Windows program.**
+**Gran Turismo Sport and Gran Turismo 7 running as native Windows programs.**
 
-RyGTS ports Gran Turismo Sport (CUSA03220, update 1.69) from PlayStation 4 to Windows. The game is
-not emulated: RyGTS's converter turns the game's executable into `GTSport.exe`, the game code runs
-directly on your CPU, and RyGTS's libraries stand in for the PS4 system. Graphics go through
+RyGT ports Gran Turismo Sport (CUSA03220, update 1.69) and Gran Turismo 7 (CUSA24769) from
+PlayStation 4 to Windows. The games are not emulated: the converter turns each game's executable
+into `GTSport.exe` or `GT7.exe`, the game code runs directly on your CPU, and RyGT's libraries
+stand in for the PS4 system. Graphics go through
 [shadGT](https://github.com/rygt-team/shadGT/tree/ryty-gpu)'s Vulkan renderer, built as the
-game's video output library.
+games' video output library.
 
-RyGTS is a fork of [Ryty](https://github.com/aarvsn/Ryty), the general PS4/PS5 porting tool, with
-everything GT Sport needs added on top.
+**One runtime, one renderer, one launcher for both games.** The runtime libraries, the renderer and
+`RyGTLauncher.exe` are single builds that serve GT Sport and GT7 alike; each tells the games apart
+at run time (by the launcher's choice, else by the executable's name). Both games can sit in **one
+folder**: everything a game writes is named after its serial (see
+[One folder for both games](#one-folder-for-both-games)). ryGT7, the former GT7 port, is merged
+into this repository.
+
+RyGT is a fork of [Ryty](https://github.com/aarvsn/Ryty), the general PS4/PS5 porting tool, with
+everything GT Sport and GT7 need added on top.
 
 ## Status
+
+GT Sport:
 
 | Area | State |
 | --- | --- |
@@ -40,38 +50,76 @@ Tested on Windows 11 with an AMD Ryzen 5 9600X and an RTX 3060 12GB
 
 Tested on Windows 10 LTSC with an AMD Ryzen 7 7745HX and an RTX 4070 8GB
 
+GT7 (CUSA24769) is set up and started by the same launcher, with its Offline mode patch
+(`patches\CUSA24769.xml`) and its online pages (Account, Online: RyGTServer and shadNet, see
+[server](server)).
+
 ## Download
 
-Get the latest build from [Releases](https://github.com/rygt-team/RyGTS/releases). A release
-contains the runtime libraries, the renderer, the converter, a launcher and the GT Sport settings.
-It contains **no game files**: you need your own decrypted dump of GT Sport CUSA03220 with update
-1.69, and the system modules and fonts from your own PS4 firmware.
+Get the latest build from [Releases](https://github.com/rygt-team/RyGTS/releases). One release
+serves both games: the runtime libraries, the renderer, the converter, the launcher, GT Sport's
+settings, and GT7's files (its stub library `libs\libSceTextToSpeech.prx`, its Offline mode patch
+`patches\CUSA24769.xml`, and the online server in `server`). It contains **no game files**: you
+need your own decrypted dump of GT Sport CUSA03220 with update 1.69 and/or GT7 CUSA24769, and the
+system modules and fonts from your own PS4 firmware.
 
-Unzip it anywhere and run `RyGTLauncher.exe`: pick your game, update, firmware
-module and font folders, press **Set up**, then **Play**. The loader's source is in
+Unzip it anywhere and run `RyGTLauncher.exe`. Pick the game at the top left of the launcher, then
+on its Game page pick your game, update, firmware module and font folders, press **Set up**, then
+**Play**. Do the same for the other game in the same folder. Updates (Settings > About > Updates)
+update the folder for both games. The loader's source is in
 [loader](loader). Manual setup steps are in [docs/gt-sport/README.md](docs/gt-sport/README.md).
 
 ## How it fits together
 
 ```
-your dump: eboot.bin (1.69) + sce_module
-        |
-        |  unwrap the SELF, then convert with ryty.exe --windows --ps4
-        v
-GTSport.exe + app0\sce_module\*.guest.prx
-        |
-        |  loads at run time
-        v
-libs\  RyGTS runtime libraries (kernel, libc, save data, audio, input, ...)
-       + shadGT renderer (libSceVideoOut.prx: Gnm driver, PM4 processing, Vulkan)
+your dumps: GT Sport (CUSA03220, 1.69)        GT7 (CUSA24769)
+            eboot.bin + sce_module            eboot.bin + sce_module
+        |                                     |
+        |  RyGTLauncher.exe: unwrap the SELF, convert with ryty.exe --windows --ps4 --app0 app0/<serial>
+        v                                     v
+GTSport.exe                                   GT7.exe
+app0\CUSA03220\sce_module\*.guest.prx        app0\CUSA24769\sce_module\*.guest.prx
+        |                                     |
+        +------------------+------------------+
+                           |  both load at run time
+                           v
+libs\  one runtime (kernel, libc, save data, audio, input, network, ...)
+       + one shadGT renderer (libSceVideoOut.prx: Gnm driver, PM4 processing, Vulkan;
+         plus shadGT's audio, NP and other libraries)
+       + GT7's stub library (libSceTextToSpeech.prx)
 ```
+
+The rest of each game is read from your dump where it is (the folders on the Game page).
+
+## One folder for both games
+
+Everything a game writes is named after its serial, so GT Sport and GT7 never touch each other's
+files:
+
+| What | GT Sport | GT7 |
+| --- | --- | --- |
+| Executable | `GTSport.exe` | `GT7.exe` |
+| Launcher and runtime settings | `CUSA03220.RyGT.ini` | `CUSA24769.RyGT.ini` |
+| Game settings | `user\custom_configs\CUSA03220.json` | `user\custom_configs\CUSA24769.json` |
+| Saves | `user\savedata\CUSA03220` | `user\savedata\CUSA24769` |
+| Converted modules | `app0\CUSA03220` | `app0\CUSA24769` |
+| Shaders and caches | `shaders\CUSA03220*` | `shaders\CUSA24769*` |
+| Logs | `logs\CUSA03220` | `logs\CUSA24769` |
+| Set up's work, temp0, data | `convert\CUSA03220`, `temp0\CUSA03220`, `data\CUSA03220` | `convert\CUSA24769`, `temp0\CUSA24769`, `data\CUSA24769` |
+| Launcher pictures (optional) | `launcher\CUSA03220` | `launcher\CUSA24769` |
+
+Shared on purpose: `libs`, `converter`, the renderer, `dlss`, the controller bindings
+(`user\input_config\default.ini`, `ryty-input.ini`, `ryty-wheel.ini`) and `RyGT-Launcher.ini` (the
+game picked last). Older folders are moved to these names by the launcher and the runtime, never
+overwriting anything; details in [loader/UNIFIED-LAUNCHER.md](loader/UNIFIED-LAUNCHER.md).
 
 ## What this repository contains
 
 - **Converter** ([core/relinker](core/relinker)): turns the PS4 executable and its modules into
   Windows binaries. RyGTS adds fixes for GT Sport's executable and modules.
-- **Runtime libraries** ([core/libs/prx](core/libs/prx)): the PS4 system libraries the game links
-  against. RyGTS's changes for GT Sport include:
+- **Runtime libraries** ([core/libs/prx](core/libs/prx)): the PS4 system libraries both games link
+  against, one build for both ([core/libs/GameSerial.hpp](core/libs/GameSerial.hpp) tells them
+  apart). The changes for GT Sport include:
   - kernel: an event queue bridge for the renderer, mapping and protection change notices so the
     renderer's memory tracking stays correct, `MAP_FIXED` replacing mappings, direct memory and
     semaphore fixes;
@@ -79,8 +127,14 @@ libs\  RyGTS runtime libraries (kernel, libc, save data, audio, input, ...)
     debugging aids;
   - save data, AppContent, audio output and network control fixes, including holding the first
     save data mount until the boot screen is drawn (GT Sport's boot script otherwise crashes).
-- **Launcher** ([loader](loader)): `RyGTLauncher.exe`, which converts the game from your own dump and
-  starts it, with options for the splash screen, FPS counter, Discord and AMD FSR 3.1 or FSR 1 upscaling.
+- **GT7 stubs** ([runtime/gt7](runtime/gt7)): `libSceTextToSpeech.prx`, the libraries GT7 needs that
+  the runtime doesn't have yet.
+- **Launcher** ([loader](loader)): `RyGTLauncher.exe`, one launcher for both games. It converts each
+  game from your own dump and starts it, with each game's display, graphics, shader and controls
+  pages, GT7's Account and Online pages, the Advanced page's renderer switches (saved per game),
+  and one updater for the folder. See [loader/UNIFIED-LAUNCHER.md](loader/UNIFIED-LAUNCHER.md).
+- **Online server** ([server](server)): RyGTServer and shadNet, which stand in for PSN and the
+  games' servers (GT7's online play).
 - **DLSS plugin** ([plugins/dlss](plugins/dlss)): optional NVIDIA DLSS upscaling. The package
   ships it as `dlss\ryGT_dlss.dll`; NVIDIA's runtime comes from the launcher's download button.
   It is licensed differently from the rest: see [License](#license).
@@ -88,9 +142,10 @@ libs\  RyGTS runtime libraries (kernel, libc, save data, audio, input, ...)
 
 The renderer lives in [shadGT, branch `ryty-gpu`](https://github.com/rygt-team/shadGT/tree/ryty-gpu)
 (`ryty_gpu/`). It builds shadGT's video output, Gnm driver and Vulkan renderer as
-`libSceVideoOut.prx`, plus shadGT's audio, NP and other libraries for RyGTS. It carries the GT
-Sport rendering fixes and the performance work (Vulkan calls on their own thread, cheaper buffer
-and image tracking).
+`libSceVideoOut.prx`, plus shadGT's audio, NP and other libraries. It is one renderer for both
+games (ryGT7's renderer, shadgt7, is merged into it): it carries GT Sport's and GT7's rendering
+fixes and game patches, picked by the running game, and the performance work (Vulkan calls on
+their own thread, cheaper buffer and image tracking).
 
 ## Building
 
@@ -103,10 +158,11 @@ yourself on Windows you need:
 | MSYS2 (UCRT64 shell) with GCC, CMake and Ninja | the runtime libraries (`libs\*.prx`) and the converter | [msys2.org](https://www.msys2.org) |
 | Internet access while configuring | CMake downloads FFmpeg's prebuilt libraries once | |
 | .NET Framework 4.x (part of Windows 10/11) | the launcher, `RyGTLauncher.exe` | built in |
+| Visual Studio's C++ tools with LLVM (clang) | only for GT7's stub library (`runtime/gt7/build.cmd`) | [visualstudio.microsoft.com](https://visualstudio.microsoft.com) |
 | Visual Studio 2022 with "C++ Clang tools", the Vulkan SDK | only to rebuild the renderer (`libSceVideoOut.prx`) | [visualstudio.microsoft.com](https://visualstudio.microsoft.com), [vulkan.lunarg.com](https://vulkan.lunarg.com) |
 
 You also need everything a release needs to run: your own decrypted GT Sport dump (CUSA03220,
-update 1.69) and your PS4 firmware's system modules and fonts.
+update 1.69) and/or GT7 dump (CUSA24769), and your PS4 firmware's system modules and fonts.
 
 ### 1. Get the code with its submodules
 
@@ -144,7 +200,8 @@ Check that the configure output has no "3rdparty submodules are missing" warning
 - `build/windows-mingw/core/relinker/ryty.exe`: the converter. It goes in `converter`.
 
 The libraries also need `libgcc_s_seh-1.dll`, `libstdc++-6.dll` and `libwinpthread-1.dll` from
-`C:\msys64\ucrt64\bin` next to `GTSport.exe` (a release already has them).
+`C:\msys64\ucrt64\bin` next to `GTSport.exe` and `GT7.exe` (a release already has them). The same
+libraries serve both games.
 
 Building from PowerShell or cmd instead of the UCRT64 shell? Put `C:\msys64\ucrt64\bin` first on
 `PATH`, or the build fails without a clear error.
@@ -176,8 +233,10 @@ cmake --preset x64-Clang-Release -DSHADGT_RYTY_GPU=ON
 cmake --build Build/x64-Clang-Release --target ryty_gpu
 ```
 
-This makes `libSceVideoOut.prx` and the other `libSce*.prx` files in `Build/x64-Clang-Release`.
-They replace the ones in `libs`.
+This makes `libSceVideoOut.prx` and the other `libSce*.prx` files in `Build/x64-Clang-Release`
+(`libSceAjm`, `libSceAudio3d`, `libSceNgs2`, `libSceZlib`, `libSceDiscMap`, `libSceScreenShot`,
+`libSceNpAuth`). They replace the ones in `libs`, for both games: copy all of them, because the
+runtime build makes placeholder libraries of some of the same names that GT7 can't run on.
 
 More details: [docs/user/BUILDING.md](docs/user/BUILDING.md).
 
@@ -193,6 +252,8 @@ Join our server for more updates: https://discord.gg/wXs3YQujSt
 ## Documentation
 
 - [GT Sport setup](docs/gt-sport/README.md)
+- [One launcher for both games](loader/UNIFIED-LAUNCHER.md)
+- [GT7's stub libraries](runtime/gt7/README.md), [online server](server/README.md)
 - [Linux (Steam Proton)](docs/user/LINUX.md)
 - Ryty's general documentation: [index](docs/README.md), [building](docs/user/BUILDING.md),
   [usage](docs/user/USAGE.md), [input mapping](docs/user/INPUT_MAPPING.md),
