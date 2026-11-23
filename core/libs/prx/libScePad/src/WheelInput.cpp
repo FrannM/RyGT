@@ -371,12 +371,16 @@ void WheelInput::logRest(const Device& device, const char* note) {
 // Windows' Logitech driver can report a pedal axis at the middle of its range until the pedal is
 // first moved, and the resting positions may be captured before that. A Logitech pedal read
 // against a middle rest loses the first half of its travel (it counts as a centred axis), so once
-// such an axis reports a released pedal (the top of its range), that becomes its rest. Steering
-// (axis 0) and other makers' wheels are left alone. Returns true when a rest changed.
+// such an axis reports a released pedal (the top of its range), that becomes its rest. Only axes
+// bound to Throttle, Brake or Clutch are corrected: a centred axis that is not a pedal (G Hub's
+// combined-pedals axis, say) reaches the top of its range when pushed fully and must keep its
+// centred rest. Steering (axis 0) and other makers' wheels are left alone. Returns true when a
+// rest changed.
 bool WheelInput::correctLogitechPedalRest(Device& device) {
     if (!device.restCaptured || !isLogitechWheel(device.vendor, device.product)) return false;
     bool corrected = false;
     for (std::size_t axis = 1; axis < device.rest.size(); ++axis) {
+        if (!isPedalAxis(device, axis)) continue;
         const int rest = device.rest[axis];
         const int value = SDL_JoystickGetAxis(device.joystick, static_cast<int>(axis));
         if (rest > CentredRestLimit) {
@@ -397,6 +401,15 @@ bool WheelInput::correctLogitechPedalRest(Device& device) {
     }
     if (corrected) logRest(device, "corrected");
     return corrected;
+}
+
+// True when one of the active bindings reads this axis of this device as Throttle, Brake or Clutch.
+bool WheelInput::isPedalAxis(const Device& device, std::size_t axis) const {
+    return std::any_of(active.begin(), active.end(), [&device, axis](const ActiveBinding& entry) {
+        const auto control = entry.binding.control;
+        return entry.device == &device && entry.binding.axis == static_cast<int>(axis) &&
+               (control == Pad::InputControl::Throttle || control == Pad::InputControl::Brake || control == Pad::InputControl::Clutch);
+    });
 }
 
 bool WheelInput::Update() {
